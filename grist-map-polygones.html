@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Grist - Carte polygones WKT</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+<style>
+  html, body { height: 100%; margin: 0; }
+  #map { width: 100%; height: 100vh; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<script>
+// -------------------------------------------------------------------
+// 1) Parsing WKT : gère POLYGON(...) et MULTIPOLYGON(...), avec trous
+// -------------------------------------------------------------------
+
+// Découpe une chaîne en groupes de parenthèses de niveau 1 : "(a),(b)" -> ["(a)","(b)"]
+function splitTopLevelParens(str) {
+  const result = [];
+  let depth = 0, start = -1;
+  for (let i = 0; i < str.length; i++) {
+    const c = str[i];
+    if (c === '(') {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (c === ')') {
+      depth--;
+      if (depth === 0) result.push(str.slice(start + 1, i)); // sans les parenthèses
+    }
+  }
+  return result;
+}
+
+// "lon lat, lon lat, ..." -> [[lat,lon], [lat,lon], ...] (Leaflet veut [lat, lon])
+function parseRing(ringStr) {
+  return ringStr.split(',').map(pair => {
+    const parts = pair.trim().split(/\s+/).map(Number);
+    return [parts[1], parts[0]]; // inverse lon/lat -> lat/lon
+  });
+}
+
+// Retourne un tableau de polygones Leaflet-ready : [ [ring1, ring2(trou), ...], ... ]
+function parseWKT(wkt) {
+  if (!wkt || typeof wkt !== 'string') return [];
+  wkt = wkt.trim();
+  const upper = wkt.toUpperCase();
+
+  try {
+    if (upper.startsWith('MULTIPOLYGON')) {
+      const outer = wkt.slice(wkt.indexOf('(') + 1, wkt.lastIndexOf(')'));
+      // outer = "((ring1),(ring2)),((ring1))"
+      const polygons = splitTopLevelParens(outer);
+      return polygons.map(polyStr => {
+        const rings = splitTopLevelParens(polyStr);
+        return rings.map(parseRing);
+      });
+    }
+    if (upper.startsWith('POLYGON')) {
+      const outer = wkt.slice(wkt.indexOf('(') + 1, wkt.lastIndexOf(')'));
+      const rings = splitTopLevelParens(outer);
+      return [rings.map(parseRing)];
+    }
+  } catch (e) {
+    console.error('Erreur de parsing WKT:', wkt, e);
+  }
+  return [];
+}
+
+// -------------------------------------------------------------------
+// 2) Initialisation de la carte
+// -------------------------------------------------------------------
+
+const map = L.map('map').setView([46.6, 2.4], 6); // vue par défaut : France
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+let layerGroup = L.layerGroup().addTo(map);
+
+function drawRecords(records, mappings) {
+  layerGroup.clearLayers();
+  const bounds = [];
+
+  records.forEach(record => {
+    const mapped = grist.mapColumnNames(record) || record;
+    const wkt = mapped.PolygoneWKT;
+    const color = mapped.Couleur || '#3388ff';
+    const label = mapped.Label || '';
+
+    // Priorité 1 : la colonne Polygone WKT, si elle n'est pas vide
+    if (wkt && String(wkt).trim() !== '') {
+      const polygons = parseWKT(wkt);
+      if (polygons.length === 0) return;
+
+      polygons.forEach(rings => {
+        const poly = L.polygon(rings, {
+          color: color,        // couleur du contour
+          fillColor: color,    // couleur du remplissage
+          fillOpacity: 0.35,
+          weight: 2
+        }).addTo(layerGroup);
+
+        if (label) poly.bindPopup(String(label));
+
+        rings.forEach(ring => ring.forEach(pt => bounds.push(pt)));
+      });
+      return;
+    }
+
+    // Priorité 2 (repli) : les colonnes Latitude / Longitude, si le WKT est vide
+    const lat = Number(mapped.Latitude);
+    const lng = Number(mapped.Longitude);
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const marker = L.circleMarker([lat, lng], {
+        radius: 8,
+        color: color,
+        fillColor: color,
+        fillOpacity: 0.8,
+        weight: 2
+      }).addTo(layerGroup);
+
+      if (label) marker.bindPopup(String(label));
+
+      bounds.push([lat, lng]);
+    }
+  });
+
+  if (bounds.length > 0) {
+    map.fitBounds(bounds, { padding: [20, 20] });
+  }
+}
+
+// -------------------------------------------------------------------
+// 3) Connexion à Grist
+// -------------------------------------------------------------------
+
+grist.ready({
+  columns: [
+    { name: 'PolygoneWKT', title: 'Polygone WKT', type: 'Text', optional: true,
+      description: 'Colonne contenant le MULTIPOLYGON(((...))) ou POLYGON(((...))). Prioritaire si non vide.' },
+    { name: 'Latitude', title: 'Latitude', type: 'Numeric', optional: true,
+      description: 'Utilisée seulement si Polygone WKT est vide (point précis)' },
+    { name: 'Longitude', title: 'Longitude', type: 'Numeric', optional: true,
+      description: 'Utilisée seulement si Polygone WKT est vide (point précis)' },
+    { name: 'Couleur', title: 'Couleur', type: 'Text', optional: true,
+      description: 'Ex : #ff0000 ou red (optionnel)' },
+    { name: 'Label', title: 'Label / popup', type: 'Text', optional: true,
+      description: 'Texte affiché dans le popup au clic (optionnel)' }
+  ],
+  requiredAccess: 'read table'
+});
+
+grist.onRecords((records, mappings) => drawRecords(records, mappings));
+</script>
+</body>
+</html>
