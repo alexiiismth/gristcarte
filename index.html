@@ -105,7 +105,21 @@ function drawRecords(records, mappings) {
           weight: 2
         }).addTo(layerGroup);
 
-        if (label) poly.bindPopup(String(label));
+        if (label) {
+          poly.bindPopup(String(label));
+          poly.bindTooltip(String(label), {
+            sticky: true,      // le tooltip suit la souris
+            direction: 'top'
+          });
+
+          // Petit effet visuel au survol pour bien voir quel polygone est ciblé
+          poly.on('mouseover', function () {
+            this.setStyle({ weight: 3, fillOpacity: 0.55 });
+          });
+          poly.on('mouseout', function () {
+            this.setStyle({ weight: 2, fillOpacity: 0.35 });
+          });
+        }
 
         rings.forEach(ring => ring.forEach(pt => bounds.push(pt)));
       });
@@ -124,7 +138,13 @@ function drawRecords(records, mappings) {
         weight: 2
       }).addTo(layerGroup);
 
-      if (label) marker.bindPopup(String(label));
+      if (label) {
+        marker.bindPopup(String(label));
+        marker.bindTooltip(String(label), {
+          sticky: true,
+          direction: 'top'
+        });
+      }
 
       bounds.push([lat, lng]);
     }
