@@ -82,6 +82,36 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 let layerGroup = L.layerGroup().addTo(map);
 
+// Crée l'icône d'un marqueur "Structure" : soit une image fournie, soit un pin rouge par défaut
+function createStructureIcon(imageUrl, color) {
+  const url = imageUrl ? String(imageUrl).trim() : '';
+  if (url !== '') {
+    return L.icon({
+      iconUrl: url,
+      iconSize: [34, 34],
+      iconAnchor: [17, 34],
+      popupAnchor: [0, -34]
+    });
+  }
+
+  // Pin SVG par défaut (rouge, ou couleur personnalisée si CouleurStructure est renseignée)
+  const fill = color || '#e53935';
+  const pinSvg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="40" viewBox="0 0 28 40">' +
+    '<path d="M14 0C6.3 0 0 6.3 0 14c0 10.5 14 26 14 26s14-15.5 14-26C28 6.3 21.7 0 14 0z" ' +
+    'fill="' + fill + '" stroke="#00000055" stroke-width="1"/>' +
+    '<circle cx="14" cy="14" r="6" fill="#fff"/>' +
+    '</svg>';
+
+  return L.divIcon({
+    html: pinSvg,
+    className: '', // évite le style par défaut de Leaflet (fond blanc carré)
+    iconSize: [28, 40],
+    iconAnchor: [14, 40],
+    popupAnchor: [0, -40]
+  });
+}
+
 function drawRecords(records, mappings) {
   layerGroup.clearLayers();
   const bounds = [];
@@ -119,15 +149,12 @@ function drawRecords(records, mappings) {
     const lat = Number(mapped.Latitude);
     const lng = Number(mapped.Longitude);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
-      const color = mapped.CouleurStructure || '#c62828'; // rouge par défaut
+      const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
       const label = mapped.NomStructure || '';
+      const image = mapped.ImageStructure || '';
 
-      const marker = L.circleMarker([lat, lng], {
-        radius: 8,
-        color: color,
-        fillColor: color,
-        fillOpacity: 0.8,
-        weight: 2
+      const marker = L.marker([lat, lng], {
+        icon: createStructureIcon(image, color)
       }).addTo(layerGroup);
 
       if (label) {
@@ -163,8 +190,10 @@ grist.ready({
       description: 'Nom de la structure (affiché au survol du point)' },
     { name: 'Latitude', title: '🟥 Structure — Latitude', type: 'Numeric', optional: true },
     { name: 'Longitude', title: '🟥 Structure — Longitude', type: 'Numeric', optional: true },
-    { name: 'CouleurStructure', title: '🟥 Structure — Couleur', type: 'Text', optional: true,
-      description: 'Ex : #c62828 ou red (optionnel, rouge par défaut)' }
+    { name: 'ImageStructure', title: '🟥 Structure — Image (URL)', type: 'Text', optional: true,
+      description: 'URL d\'une image/icône (ex: pont). Si vide -> pin rouge par défaut.' },
+    { name: 'CouleurStructure', title: '🟥 Structure — Couleur du pin', type: 'Text', optional: true,
+      description: 'Utilisée seulement si pas d\'image. Ex : #1565c0 (sinon rouge par défaut)' }
   ],
   requiredAccess: 'read table'
 });
