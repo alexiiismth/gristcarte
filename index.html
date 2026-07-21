@@ -88,48 +88,40 @@ function drawRecords(records, mappings) {
 
   records.forEach(record => {
     const mapped = grist.mapColumnNames(record) || record;
-    const wkt = mapped.PolygoneWKT;
-    const color = mapped.Couleur || '#3388ff';
-    const label = mapped.Label || '';
 
-    // Priorité 1 : la colonne Polygone WKT, si elle n'est pas vide
+    // ------------------ Groupe "Domaine / Parc" (polygone) ------------------
+    const wkt = mapped.PolygoneWKT;
     if (wkt && String(wkt).trim() !== '') {
       const polygons = parseWKT(wkt);
-      if (polygons.length === 0) return;
+      const color = mapped.CouleurDomaine || '#2e7d32'; // vert par défaut
+      const label = mapped.NomDomaine || '';
 
       polygons.forEach(rings => {
         const poly = L.polygon(rings, {
-          color: color,        // couleur du contour
-          fillColor: color,    // couleur du remplissage
+          color: color,
+          fillColor: color,
           fillOpacity: 0.35,
           weight: 2
         }).addTo(layerGroup);
 
         if (label) {
           poly.bindPopup(String(label));
-          poly.bindTooltip(String(label), {
-            sticky: true,      // le tooltip suit la souris
-            direction: 'top'
-          });
-
-          // Petit effet visuel au survol pour bien voir quel polygone est ciblé
-          poly.on('mouseover', function () {
-            this.setStyle({ weight: 3, fillOpacity: 0.55 });
-          });
-          poly.on('mouseout', function () {
-            this.setStyle({ weight: 2, fillOpacity: 0.35 });
-          });
+          poly.bindTooltip(String(label), { sticky: true, direction: 'top' });
+          poly.on('mouseover', function () { this.setStyle({ weight: 3, fillOpacity: 0.55 }); });
+          poly.on('mouseout', function () { this.setStyle({ weight: 2, fillOpacity: 0.35 }); });
         }
 
         rings.forEach(ring => ring.forEach(pt => bounds.push(pt)));
       });
-      return;
     }
 
-    // Priorité 2 (repli) : les colonnes Latitude / Longitude, si le WKT est vide
+    // ------------------ Groupe "Structure" (point) ------------------
     const lat = Number(mapped.Latitude);
     const lng = Number(mapped.Longitude);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      const color = mapped.CouleurStructure || '#c62828'; // rouge par défaut
+      const label = mapped.NomStructure || '';
+
       const marker = L.circleMarker([lat, lng], {
         radius: 8,
         color: color,
@@ -140,10 +132,7 @@ function drawRecords(records, mappings) {
 
       if (label) {
         marker.bindPopup(String(label));
-        marker.bindTooltip(String(label), {
-          sticky: true,
-          direction: 'top'
-        });
+        marker.bindTooltip(String(label), { sticky: true, direction: 'top' });
       }
 
       bounds.push([lat, lng]);
@@ -161,16 +150,21 @@ function drawRecords(records, mappings) {
 
 grist.ready({
   columns: [
-    { name: 'PolygoneWKT', title: 'Polygone WKT', type: 'Text', optional: true,
-      description: 'Colonne contenant le MULTIPOLYGON(((...))) ou POLYGON(((...))). Prioritaire si non vide.' },
-    { name: 'Latitude', title: 'Latitude', type: 'Numeric', optional: true,
-      description: 'Utilisée seulement si Polygone WKT est vide (point précis)' },
-    { name: 'Longitude', title: 'Longitude', type: 'Numeric', optional: true,
-      description: 'Utilisée seulement si Polygone WKT est vide (point précis)' },
-    { name: 'Couleur', title: 'Couleur', type: 'Text', optional: true,
-      description: 'Ex : #ff0000 ou red (optionnel)' },
-    { name: 'Label', title: 'Label / popup', type: 'Text', optional: true,
-      description: 'Texte affiché dans le popup au clic (optionnel)' }
+    // ---- Groupe "Domaine / Parc" (polygone) ----
+    { name: 'NomDomaine', title: '🟩 Domaine/Parc — Nom', type: 'Text', optional: true,
+      description: 'Nom du domaine ou du parc (affiché au survol du polygone)' },
+    { name: 'PolygoneWKT', title: '🟩 Domaine/Parc — Polygone WKT', type: 'Text', optional: true,
+      description: 'MULTIPOLYGON(((...))) ou POLYGON(((...)))' },
+    { name: 'CouleurDomaine', title: '🟩 Domaine/Parc — Couleur', type: 'Text', optional: true,
+      description: 'Ex : #2e7d32 ou green (optionnel, vert par défaut)' },
+
+    // ---- Groupe "Structure" (point) ----
+    { name: 'NomStructure', title: '🟥 Structure — Nom', type: 'Text', optional: true,
+      description: 'Nom de la structure (affiché au survol du point)' },
+    { name: 'Latitude', title: '🟥 Structure — Latitude', type: 'Numeric', optional: true },
+    { name: 'Longitude', title: '🟥 Structure — Longitude', type: 'Numeric', optional: true },
+    { name: 'CouleurStructure', title: '🟥 Structure — Couleur', type: 'Text', optional: true,
+      description: 'Ex : #c62828 ou red (optionnel, rouge par défaut)' }
   ],
   requiredAccess: 'read table'
 });
