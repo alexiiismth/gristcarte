@@ -247,21 +247,26 @@ function drawRecords(records, mappings) {
         icon: createStructureIcon(image, color)
       }).addTo(layerGroup);
 
-      const domaine = mapped.DomaineStructure || '';
-      const etat = mapped.EtatStructure || '';
-      const securite = mapped.SecuriteStructure || '';
+      const domaine = mapped.DomaineStructure || '—';
+      const etat = mapped.EtatStructure || '—';
+      const securite = mapped.SecuriteStructure || '—';
       const lienFiche = mapped.LienFicheStructure || '';
       const lienFormulaire = mapped.LienFormulaireStructure || '';
       const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
+      // Bouton "Voir la fiche" : lien normal si une fiche existe, sinon message d'alerte au clic
+      const btnFiche = lienFiche
+        ? '<a class="btn btn-fiche" href="' + escapeHtml(lienFiche) + '" target="_blank" rel="noopener">📄 Voir la fiche</a>'
+        : '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); alert(\'Il n\\\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.\');">📄 Voir la fiche</a>';
+
       const cardHtml =
         '<div class="structure-card">' +
           '<h3>' + escapeHtml(nom) + '</h3>' +
-          (domaine ? '<div class="row"><b>Domaine :</b> ' + escapeHtml(domaine) + '</div>' : '') +
-          (etat ? '<div class="row"><b>État :</b> ' + escapeHtml(etat) + '</div>' : '') +
-          (securite ? '<div class="row"><b>Sécurité :</b> ' + escapeHtml(securite) + '</div>' : '') +
+          '<div class="row"><b>Domaine :</b> ' + escapeHtml(domaine) + '</div>' +
+          '<div class="row"><b>État :</b> ' + escapeHtml(etat) + '</div>' +
+          '<div class="row"><b>Sécurité :</b> ' + escapeHtml(securite) + '</div>' +
           '<div class="buttons">' +
-            (lienFiche ? '<a class="btn btn-fiche" href="' + escapeHtml(lienFiche) + '" target="_blank" rel="noopener">📄 Voir la fiche</a>' : '') +
+            btnFiche +
             (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
             '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
           '</div>' +
