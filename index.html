@@ -53,6 +53,18 @@
   .structure-card .btn-fiche { background: #1565c0; }
   .structure-card .btn-form { background: #2e7d32; }
   .structure-card .btn-maps { background: #616161; }
+
+  .structure-card .warning-box {
+    display: none;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: #fff3e0;
+    border: 1px solid #ffb74d;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #7a4a00;
+  }
+  .structure-card .warning-box.visible { display: block; }
 </style>
 </head>
 <body>
@@ -254,10 +266,15 @@ function drawRecords(records, mappings) {
       const lienFormulaire = mapped.LienFormulaireStructure || '';
       const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
-      // Bouton "Voir la fiche" : lien normal si une fiche existe, sinon message d'alerte au clic
+      // Bouton "Voir la fiche" : lien normal si une fiche existe, sinon affiche un message inline (pas d'alerte navigateur)
+      const warningId = 'warn-' + Math.random().toString(36).slice(2);
       const btnFiche = lienFiche
         ? '<a class="btn btn-fiche" href="' + escapeHtml(lienFiche) + '" target="_blank" rel="noopener">📄 Voir la fiche</a>'
-        : '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); alert(\'Il n\\\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.\');">📄 Voir la fiche</a>';
+        : '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warningId + '\').classList.add(\'visible\');">📄 Voir la fiche</a>';
+
+      const warningBox = lienFiche
+        ? ''
+        : '<div class="warning-box" id="' + warningId + '">Il n\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.</div>';
 
       const cardHtml =
         '<div class="structure-card">' +
@@ -270,6 +287,7 @@ function drawRecords(records, mappings) {
             (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
             '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
           '</div>' +
+          warningBox +
         '</div>';
 
       attachHoverCard(marker, cardHtml);
