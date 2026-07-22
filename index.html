@@ -233,8 +233,8 @@ function drawRecords(records, mappings) {
       const domaineCardHtml =
         '<div class="structure-card">' +
           '<h3>' + escapeHtml(nomDomaine) + '</h3>' +
-          '<div class="row"><b>Superficie :</b> ' + escapeHtml(superficie) + '</div>' +
-          '<div class="row"><b>Protection :</b> ' + escapeHtml(protection) + '</div>' +
+          '<div class="row"><b>Est. Superficie (ha) :</b> ' + escapeHtml(superficie) + '</div>' +
+          '<div class="row"><b>Protection(s) :</b> ' + escapeHtml(protection) + '</div>' +
         '</div>';
 
       polygons.forEach(rings => {
@@ -257,7 +257,9 @@ function drawRecords(records, mappings) {
     // ------------------ Groupe "Structure" (point) ------------------
     const lat = Number(mapped.Latitude);
     const lng = Number(mapped.Longitude);
-    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    // (0,0) = cellule vide interprétée par Grist comme 0 -> on l'ignore (sinon un pin apparaît au milieu de l'océan)
+    const hasValidCoords = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
+    if (hasValidCoords) {
       const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
       const nom = mapped.NomStructure || 'Structure';
       const image = mapped.ImageStructure || '';
