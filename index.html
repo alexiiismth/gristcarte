@@ -65,6 +65,82 @@
     color: #7a4a00;
   }
   .structure-card .warning-box.visible { display: block; }
+
+  .photo-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .photo-modal {
+    background: #fff;
+    border-radius: 12px;
+    padding: 22px;
+    max-width: 90vw;
+    max-height: 85vh;
+    overflow: auto;
+    position: relative;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+  .photo-modal h3 {
+    margin: 0 0 14px 0;
+    font-size: 18px;
+    padding-right: 24px;
+  }
+  .photo-modal .close-btn {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    cursor: pointer;
+    font-size: 22px;
+    line-height: 1;
+    background: none;
+    border: none;
+    color: #555;
+  }
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(200px, 260px));
+    gap: 18px;
+  }
+  .photo-grid.single {
+    grid-template-columns: minmax(200px, 320px);
+  }
+  .photo-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .photo-slot img {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: #eee;
+  }
+  .photo-slot .no-photo {
+    width: 100%;
+    height: 180px;
+    border-radius: 8px;
+    background: #eee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 13px;
+    text-align: center;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  .photo-slot .desc {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #444;
+    text-align: center;
+  }
 </style>
 </head>
 <body>
@@ -146,6 +222,52 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+// Stockage global des photos par identifiant unique (évite les soucis d'échappement JSON dans le HTML)
+window.__photoStore = {};
+
+// Construit et affiche la fenêtre modale avec les photos + descriptions
+window.showPhotoModal = function (storeId, title) {
+  window.closePhotoModal();
+
+  const photos = window.__photoStore[storeId] || [];
+  const gridClass = photos.length <= 1 ? 'photo-grid single' : 'photo-grid';
+
+  const slotsHtml = photos.map(p => {
+    const img = p.url
+      ? '<img src="' + escapeHtml(p.url) + '" alt="photo" />'
+      : '<div class="no-photo">Aucune photo</div>';
+    const desc = p.desc ? '<div class="desc">' + escapeHtml(p.desc) + '</div>' : '';
+    return '<div class="photo-slot">' + img + desc + '</div>';
+  }).join('');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      '<h3>' + escapeHtml(title || 'Photos') + '</h3>' +
+      '<div class="' + gridClass + '">' + slotsHtml + '</div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+};
+
+// Échappe une chaîne pour l'insérer en toute sécurité comme littéral JS entre apostrophes,
+// utilisé dans les attributs onclick="..." (qui eux sont entre guillemets doubles)
+function jsStringLiteral(str) {
+  return "'" + String(str)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, ' ') + "'";
+}
+
+window.closePhotoModal = function () {
+  const el = document.getElementById('photo-modal-overlay');
+  if (el) el.remove();
+};
 
 // Attache un popup qui s'ouvre au survol et reste ouvert tant que la souris
 // est sur la couche (marqueur ou polygone) OU sur l'encadré lui-même (pour pouvoir cliquer les boutons)
@@ -230,11 +352,19 @@ function drawRecords(records, mappings) {
       const superficie = mapped.SuperficieDomaine || '—';
       const protection = mapped.ProtectionDomaine || '—';
 
+      const photoDomaineId = 'photo-domaine-' + Math.random().toString(36).slice(2);
+      window.__photoStore[photoDomaineId] = [
+        { url: mapped.PhotoDomaine || '', desc: mapped.DescriptionPhotoDomaine || '' }
+      ];
+
       const domaineCardHtml =
         '<div class="structure-card">' +
           '<h3>' + escapeHtml(nomDomaine) + '</h3>' +
           '<div class="row"><b>Est. Superficie (ha) :</b> ' + escapeHtml(superficie) + '</div>' +
           '<div class="row"><b>Protection(s) :</b> ' + escapeHtml(protection) + '</div>' +
+          '<div class="buttons">' +
+            '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoDomaineId + '\', ' + JSON.stringify(nomDomaine) + ');">📷 Photo</a>' +
+          '</div>' +
         '</div>';
 
       polygons.forEach(rings => {
@@ -327,6 +457,10 @@ grist.ready({
       description: 'Ex : 12 ha ou 120 000 m²' },
     { name: 'ProtectionDomaine', title: '🟩 Domaine/Parc — Protection', type: 'Text', optional: true,
       description: 'Ex : Site classé, Natura 2000...' },
+    { name: 'PhotoDomaine', title: '🟩 Domaine/Parc — Photo (URL)', type: 'Text', optional: true,
+      description: 'URL de la photo du domaine' },
+    { name: 'DescriptionPhotoDomaine', title: '🟩 Domaine/Parc — Description photo', type: 'Text', optional: true,
+      description: 'Légende affichée sous la photo' },
 
     // ---- Groupe "Structure" (point) ----
     { name: 'NomStructure', title: '🟥 Structure — Nom', type: 'Text', optional: true,
@@ -343,6 +477,14 @@ grist.ready({
       description: 'URL vers la fiche visite existante de cette structure' },
     { name: 'LienFormulaireStructure', title: '🟥 Structure — Lien formulaire (URL)', type: 'Text', optional: true,
       description: 'URL vers le formulaire "créer une fiche visite" (peut être la même URL pour toutes les lignes)' },
+    { name: 'Photo1Structure', title: '🟥 Structure — Photo 1 (URL)', type: 'Text', optional: true },
+    { name: 'DescriptionPhoto1Structure', title: '🟥 Structure — Description photo 1', type: 'Text', optional: true },
+    { name: 'Photo2Structure', title: '🟥 Structure — Photo 2 (URL)', type: 'Text', optional: true },
+    { name: 'DescriptionPhoto2Structure', title: '🟥 Structure — Description photo 2', type: 'Text', optional: true },
+    { name: 'Photo3Structure', title: '🟥 Structure — Photo 3 (URL)', type: 'Text', optional: true },
+    { name: 'DescriptionPhoto3Structure', title: '🟥 Structure — Description photo 3', type: 'Text', optional: true },
+    { name: 'Photo4Structure', title: '🟥 Structure — Photo 4 (URL)', type: 'Text', optional: true },
+    { name: 'DescriptionPhoto4Structure', title: '🟥 Structure — Description photo 4', type: 'Text', optional: true },
     { name: 'ImageStructure', title: '🟥 Structure — Image (URL)', type: 'Text', optional: true,
       description: 'URL d\'une image/icône (ex: pont). Si vide -> pin rouge par défaut.' },
     { name: 'CouleurStructure', title: '🟥 Structure — Couleur du pin', type: 'Text', optional: true,
