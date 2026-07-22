@@ -147,10 +147,22 @@ function attachHoverCard(marker, contentHtml) {
 
   let closeTimer = null;
   const cancelClose = () => { if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; } };
-  const scheduleClose = () => { closeTimer = setTimeout(() => marker.closePopup(), 200); };
+  const scheduleClose = () => { closeTimer = setTimeout(() => marker.closePopup(), 250); };
 
+  // Événements Leaflet (fonctionnent dans la plupart des cas)
   marker.on('mouseover', () => { cancelClose(); marker.openPopup(); });
   marker.on('mouseout', scheduleClose);
+
+  // Renfort : écouteurs DOM natifs directement sur l'icône, plus fiables
+  // avec certaines icônes personnalisées (image/SVG) selon les navigateurs
+  marker.on('add', () => {
+    const el = marker.getElement();
+    if (el) {
+      el.addEventListener('mouseenter', () => { cancelClose(); marker.openPopup(); });
+      el.addEventListener('mouseleave', scheduleClose);
+    }
+  });
+
   marker.on('popupopen', (e) => {
     const el = e.popup.getElement();
     if (el) {
@@ -166,9 +178,9 @@ function createStructureIcon(imageUrl, color) {
   if (url !== '') {
     return L.icon({
       iconUrl: url,
-      iconSize: [34, 34],
-      iconAnchor: [17, 34],
-      popupAnchor: [0, -34]
+      iconSize: [68, 68],      // taille x2 par rapport à avant (34 -> 68)
+      iconAnchor: [34, 68],
+      popupAnchor: [0, -68]
     });
   }
 
@@ -228,17 +240,34 @@ function drawRecords(records, mappings) {
     const lng = Number(mapped.Longitude);
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
       const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
-      const label = mapped.NomStructure || '';
+      const nom = mapped.NomStructure || 'Structure';
       const image = mapped.ImageStructure || '';
 
       const marker = L.marker([lat, lng], {
         icon: createStructureIcon(image, color)
       }).addTo(layerGroup);
 
-      if (label) {
-        marker.bindPopup(String(label));
-        marker.bindTooltip(String(label), { sticky: true, direction: 'top' });
-      }
+      const domaine = mapped.DomaineStructure || '';
+      const etat = mapped.EtatStructure || '';
+      const securite = mapped.SecuriteStructure || '';
+      const lienFiche = mapped.LienFicheStructure || '';
+      const lienFormulaire = mapped.LienFormulaireStructure || '';
+      const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+
+      const cardHtml =
+        '<div class="structure-card">' +
+          '<h3>' + escapeHtml(nom) + '</h3>' +
+          (domaine ? '<div class="row"><b>Domaine :</b> ' + escapeHtml(domaine) + '</div>' : '') +
+          (etat ? '<div class="row"><b>État :</b> ' + escapeHtml(etat) + '</div>' : '') +
+          (securite ? '<div class="row"><b>Sécurité :</b> ' + escapeHtml(securite) + '</div>' : '') +
+          '<div class="buttons">' +
+            (lienFiche ? '<a class="btn btn-fiche" href="' + escapeHtml(lienFiche) + '" target="_blank" rel="noopener">📄 Voir la fiche</a>' : '') +
+            (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
+            '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
+          '</div>' +
+        '</div>';
+
+      attachHoverCard(marker, cardHtml);
 
       bounds.push([lat, lng]);
     }
@@ -266,8 +295,8 @@ grist.ready({
     // ---- Groupe "Structure" (point) ----
     { name: 'NomStructure', title: '🟥 Structure — Nom', type: 'Text', optional: true,
       description: 'Nom de la structure (titre de l\'encadré au survol)' },
-    { name: 'Latitude', title: '🟥 Structure — Latitude', type: 'Numeric', optional: true },
-    { name: 'Longitude', title: '🟥 Structure — Longitude', type: 'Numeric', optional: true },
+    { name: 'Latitude', title: '🟥 Structure — Latitude', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Longitude', title: '🟥 Structure — Longitude', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'DomaineStructure', title: '🟥 Structure — Domaine', type: 'Text', optional: true,
       description: 'Domaine/parc auquel appartient la structure' },
     { name: 'EtatStructure', title: '🟥 Structure — État', type: 'Text', optional: true,
