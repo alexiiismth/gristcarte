@@ -148,34 +148,34 @@ function escapeHtml(str) {
 }
 
 // Attache un popup qui s'ouvre au survol et reste ouvert tant que la souris
-// est sur le marqueur OU sur l'encadré lui-même (pour pouvoir cliquer les boutons)
-function attachHoverCard(marker, contentHtml) {
-  marker.bindPopup(contentHtml, {
+// est sur la couche (marqueur ou polygone) OU sur l'encadré lui-même (pour pouvoir cliquer les boutons)
+function attachHoverCard(layer, contentHtml, extraOptions) {
+  layer.bindPopup(contentHtml, Object.assign({
     closeButton: true,
     autoClose: false,
     closeOnClick: false,
     className: 'structure-popup'
-  });
+  }, extraOptions || {}));
 
   let closeTimer = null;
   const cancelClose = () => { if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; } };
-  const scheduleClose = () => { closeTimer = setTimeout(() => marker.closePopup(), 250); };
+  const scheduleClose = () => { closeTimer = setTimeout(() => layer.closePopup(), 250); };
 
   // Événements Leaflet (fonctionnent dans la plupart des cas)
-  marker.on('mouseover', () => { cancelClose(); marker.openPopup(); });
-  marker.on('mouseout', scheduleClose);
+  layer.on('mouseover', () => { cancelClose(); layer.openPopup(); });
+  layer.on('mouseout', scheduleClose);
 
-  // Renfort : écouteurs DOM natifs directement sur l'icône, plus fiables
+  // Renfort : écouteurs DOM natifs directement sur l'élément, plus fiables
   // avec certaines icônes personnalisées (image/SVG) selon les navigateurs
-  marker.on('add', () => {
-    const el = marker.getElement();
+  layer.on('add', () => {
+    const el = layer.getElement ? layer.getElement() : null;
     if (el) {
-      el.addEventListener('mouseenter', () => { cancelClose(); marker.openPopup(); });
+      el.addEventListener('mouseenter', () => { cancelClose(); layer.openPopup(); });
       el.addEventListener('mouseleave', scheduleClose);
     }
   });
 
-  marker.on('popupopen', (e) => {
+  layer.on('popupopen', (e) => {
     const el = e.popup.getElement();
     if (el) {
       el.addEventListener('mouseenter', cancelClose);
@@ -226,7 +226,16 @@ function drawRecords(records, mappings) {
     if (wkt && String(wkt).trim() !== '') {
       const polygons = parseWKT(wkt);
       const color = mapped.CouleurDomaine || '#2e7d32'; // vert par défaut
-      const label = mapped.NomDomaine || '';
+      const nomDomaine = mapped.NomDomaine || 'Domaine';
+      const superficie = mapped.SuperficieDomaine || '—';
+      const protection = mapped.ProtectionDomaine || '—';
+
+      const domaineCardHtml =
+        '<div class="structure-card">' +
+          '<h3>' + escapeHtml(nomDomaine) + '</h3>' +
+          '<div class="row"><b>Superficie :</b> ' + escapeHtml(superficie) + '</div>' +
+          '<div class="row"><b>Protection :</b> ' + escapeHtml(protection) + '</div>' +
+        '</div>';
 
       polygons.forEach(rings => {
         const poly = L.polygon(rings, {
@@ -236,12 +245,10 @@ function drawRecords(records, mappings) {
           weight: 2
         }).addTo(layerGroup);
 
-        if (label) {
-          poly.bindPopup(String(label));
-          poly.bindTooltip(String(label), { sticky: true, direction: 'top' });
-          poly.on('mouseover', function () { this.setStyle({ weight: 3, fillOpacity: 0.55 }); });
-          poly.on('mouseout', function () { this.setStyle({ weight: 2, fillOpacity: 0.35 }); });
-        }
+        poly.on('mouseover', function () { this.setStyle({ weight: 3, fillOpacity: 0.55 }); });
+        poly.on('mouseout', function () { this.setStyle({ weight: 2, fillOpacity: 0.35 }); });
+
+        attachHoverCard(poly, domaineCardHtml, { closeButton: false });
 
         rings.forEach(ring => ring.forEach(pt => bounds.push(pt)));
       });
@@ -314,6 +321,10 @@ grist.ready({
       description: 'MULTIPOLYGON(((...))) ou POLYGON(((...)))' },
     { name: 'CouleurDomaine', title: '🟩 Domaine/Parc — Couleur', type: 'Text', optional: true,
       description: 'Ex : #2e7d32 ou green (optionnel, vert par défaut)' },
+    { name: 'SuperficieDomaine', title: '🟩 Domaine/Parc — Superficie', type: 'Text,Numeric,Int,Any', optional: true,
+      description: 'Ex : 12 ha ou 120 000 m²' },
+    { name: 'ProtectionDomaine', title: '🟩 Domaine/Parc — Protection', type: 'Text', optional: true,
+      description: 'Ex : Site classé, Natura 2000...' },
 
     // ---- Groupe "Structure" (point) ----
     { name: 'NomStructure', title: '🟥 Structure — Nom', type: 'Text', optional: true,
