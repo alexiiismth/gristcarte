@@ -261,6 +261,26 @@ function parseFrenchNumber(value) {
   return Number(String(value).trim().replace(',', '.'));
 }
 
+// Formate une date pour l'affichage : gère les nombres (colonnes Date Grist = secondes epoch) et le texte brut
+function formatDateValue(value) {
+  if (value === null || value === undefined || value === '') return '';
+  if (typeof value === 'number') {
+    const d = new Date(value * 1000);
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('fr-FR');
+  }
+  return String(value);
+}
+
+// Retourne une clé de tri (timestamp) pour ordonner les visites de la plus récente à la plus ancienne
+function dateSortKey(value) {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Date.parse(value);
+    if (!isNaN(parsed)) return parsed / 1000;
+  }
+  return -Infinity;
+}
+
 // Échappe le texte pour éviter de casser le HTML si un nom contient des caractères spéciaux
 function escapeHtml(str) {
   return String(str)
