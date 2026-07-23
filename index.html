@@ -232,8 +232,12 @@ function resolveImageValue(value, tokenInfo) {
   if (!value) return '';
   if (Array.isArray(value)) {
     if (value.length === 0) return '';
-    const first = value[0];
-    if (typeof first === 'number' && tokenInfo) return buildAttachmentUrl(tokenInfo, first);
+    // Ignore un éventuel préfixe d'encodage Grist ('L' pour "list") si présent en première position
+    const items = (value[0] === 'L') ? value.slice(1) : value;
+    if (items.length === 0) return '';
+    const first = items[0];
+    const id = typeof first === 'number' ? first : (typeof first === 'string' && /^\d+$/.test(first) ? Number(first) : null);
+    if (id !== null && tokenInfo) return buildAttachmentUrl(tokenInfo, id);
     return '';
   }
   return String(value).trim();
@@ -280,17 +284,29 @@ window.showPhotoModal = async function (storeId, title) {
 
   // Résout chaque photo : soit une URL texte, soit une pièce jointe Grist (nécessite un jeton)
   let tokenInfo = null;
+  let tokenError = '';
   try {
     tokenInfo = await getFreshAccessToken();
   } catch (e) {
     console.error('Impossible de récupérer le jeton d\'accès Grist pour les pièces jointes :', e);
+    tokenError = 'Erreur d\'accès aux pièces jointes : ' + (e && e.message ? e.message : e);
   }
 
-  const slotsHtml = photos.map(p => {
+  const slotsHtml = photos.map((p, i) => {
+    const hasRawValue = Array.isArray(p.url) ? p.url.length > 0 : !!p.url;
     const src = resolveImageValue(p.url, tokenInfo);
-    const img = src
-      ? '<img src="' + escapeHtml(src) + '" alt="photo" />'
-      : '<div class="no-photo">Aucune photo</div>';
+    let img;
+    if (src) {
+      img = '<img src="' + escapeHtml(src) + '" alt="photo" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'), {className:\'no-photo\', textContent:\'Image inaccessible (voir console)\'}))" />';
+    } else if (hasRawValue && tokenError) {
+      img = '<div class="no-photo">' + escapeHtml(tokenError) + '</div>';
+      console.error('Photo ' + (i + 1) + ' : valeur brute présente mais non résolue ->', p.url);
+    } else if (hasRawValue) {
+      img = '<div class="no-photo">Format de pièce jointe non reconnu (voir console)</div>';
+      console.error('Photo ' + (i + 1) + ' : format de valeur inattendu ->', p.url);
+    } else {
+      img = '<div class="no-photo">Aucune photo</div>';
+    }
     const desc = p.desc ? '<div class="desc">' + escapeHtml(p.desc) + '</div>' : '';
     return '<div class="photo-slot">' + img + desc + '</div>';
   }).join('');
@@ -564,7 +580,7 @@ grist.ready({
     { name: 'CouleurStructure', title: '🟥 Structure — Couleur du pin', type: 'Text', optional: true,
       description: 'Utilisée seulement si pas d\'image. Ex : #1565c0 (sinon rouge par défaut)' }
   ],
-  requiredAccess: 'read table'
+  requiredAccess: 'full'
 });
 
 grist.onRecords((records, mappings) => drawRecords(records, mappings));
