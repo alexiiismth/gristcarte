@@ -103,11 +103,11 @@
   }
   .photo-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(200px, 260px));
+    grid-template-columns: repeat(2, minmax(240px, 340px));
     gap: 18px;
   }
   .photo-grid.single {
-    grid-template-columns: minmax(200px, 320px);
+    grid-template-columns: minmax(240px, 420px);
   }
   .photo-slot {
     display: flex;
@@ -116,14 +116,14 @@
   }
   .photo-slot img {
     width: 100%;
-    height: 180px;
+    height: 260px;
     object-fit: cover;
     border-radius: 8px;
     background: #eee;
   }
   .photo-slot .no-photo {
     width: 100%;
-    height: 180px;
+    height: 260px;
     border-radius: 8px;
     background: #eee;
     display: flex;
@@ -496,6 +496,13 @@ async function drawRecords(records, mappings) {
           { url: mapped.Photo4Structure || '', desc: mapped.DescriptionPhoto4Structure || '' }
         ];
 
+        // Stockage des 2 photos "Grilles d'évaluation"
+        const grilleEvalId = 'grille-eval-' + Math.random().toString(36).slice(2);
+        window.__photoStore[grilleEvalId] = [
+          { url: mapped.GrilleEval1Structure || '', desc: mapped.DescriptionGrilleEval1Structure || '' },
+          { url: mapped.GrilleEval2Structure || '', desc: mapped.DescriptionGrilleEval2Structure || '' }
+        ];
+
         const cardHtml =
           '<div class="structure-card">' +
             '<h3>' + escapeHtml(nom) + '</h3>' +
@@ -507,6 +514,7 @@ async function drawRecords(records, mappings) {
               (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
               '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
               '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de la structure</a>' +
+              '<a class="btn btn-form" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + grilleEvalId + '\', ' + jsStringLiteral('Grilles d\'évaluation — ' + nom) + ');">📋 Grilles d\'évaluation Etat structurel / Etat sécurité usagers</a>' +
             '</div>' +
             warningBox +
           '</div>';
@@ -577,6 +585,12 @@ grist.ready({
     { name: 'DescriptionPhoto4Structure', title: '🟥 Structure — Description photo 4', type: 'Text', optional: true },
     { name: 'ImageStructure', title: '🟥 Structure — Image du pin', type: 'Text,Attachments', optional: true,
       description: 'URL d\'une image OU colonne "Pièce jointe" Grist (ex: pont). Si vide -> pin rouge par défaut.' },
+    { name: 'GrilleEval1Structure', title: '🟥 Structure — Grille éval. 1 (État structurel)', type: 'Text,Attachments', optional: true,
+      description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
+    { name: 'DescriptionGrilleEval1Structure', title: '🟥 Structure — Description grille éval. 1', type: 'Text', optional: true },
+    { name: 'GrilleEval2Structure', title: '🟥 Structure — Grille éval. 2 (Sécurité usagers)', type: 'Text,Attachments', optional: true,
+      description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
+    { name: 'DescriptionGrilleEval2Structure', title: '🟥 Structure — Description grille éval. 2', type: 'Text', optional: true },
     { name: 'CouleurStructure', title: '🟥 Structure — Couleur du pin', type: 'Text', optional: true,
       description: 'Utilisée seulement si pas d\'image. Ex : #1565c0 (sinon rouge par défaut)' }
   ],
