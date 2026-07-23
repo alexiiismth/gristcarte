@@ -214,6 +214,38 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 let layerGroup = L.layerGroup().addTo(map);
 
+// -------------------------------------------------------------------
+// Gestion des images : soit une URL (texte), soit une colonne "Pièce jointe" Grist
+// -------------------------------------------------------------------
+
+// Récupère un jeton d'accès court terme pour construire les URLs de pièces jointes
+async function getFreshAccessToken() {
+  return await grist.docApi.getAccessToken({ readOnly: true });
+}
+
+function buildAttachmentUrl(tokenInfo, attachmentId) {
+  return tokenInfo.baseUrl + '/attachments/' + attachmentId + '/download?auth=' + tokenInfo.token;
+}
+
+// value peut être : vide, une URL en texte, ou un tableau d'ids (colonne Pièce jointe Grist)
+function resolveImageValue(value, tokenInfo) {
+  if (!value) return '';
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '';
+    const first = value[0];
+    if (typeof first === 'number' && tokenInfo) return buildAttachmentUrl(tokenInfo, first);
+    return '';
+  }
+  return String(value).trim();
+}
+
+// Convertit un texte en nombre en gérant la virgule décimale française ("43,6047" -> 43.6047)
+function parseFrenchNumber(value) {
+  if (value === null || value === undefined || value === '') return NaN;
+  if (typeof value === 'number') return value;
+  return Number(String(value).trim().replace(',', '.'));
+}
+
 // Échappe le texte pour éviter de casser le HTML si un nom contient des caractères spéciaux
 function escapeHtml(str) {
   return String(str)
@@ -227,20 +259,13 @@ function escapeHtml(str) {
 window.__photoStore = {};
 
 // Construit et affiche la fenêtre modale avec les photos + descriptions
-window.showPhotoModal = function (storeId, title) {
+window.showPhotoModal = async function (storeId, title) {
   window.closePhotoModal();
 
   const photos = window.__photoStore[storeId] || [];
   const gridClass = photos.length <= 1 ? 'photo-grid single' : 'photo-grid';
 
-  const slotsHtml = photos.map(p => {
-    const img = p.url
-      ? '<img src="' + escapeHtml(p.url) + '" alt="photo" />'
-      : '<div class="no-photo">Aucune photo</div>';
-    const desc = p.desc ? '<div class="desc">' + escapeHtml(p.desc) + '</div>' : '';
-    return '<div class="photo-slot">' + img + desc + '</div>';
-  }).join('');
-
+  // Affiche d'abord un état "chargement" pendant qu'on résout les URLs des pièces jointes
   const overlay = document.createElement('div');
   overlay.className = 'photo-modal-overlay';
   overlay.id = 'photo-modal-overlay';
@@ -249,10 +274,33 @@ window.showPhotoModal = function (storeId, title) {
     '<div class="photo-modal">' +
       '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
       '<h3>' + escapeHtml(title || 'Photos') + '</h3>' +
-      '<div class="' + gridClass + '">' + slotsHtml + '</div>' +
+      '<div class="' + gridClass + '"><p>Chargement des photos…</p></div>' +
     '</div>';
-
   document.body.appendChild(overlay);
+
+  // Résout chaque photo : soit une URL texte, soit une pièce jointe Grist (nécessite un jeton)
+  let tokenInfo = null;
+  try {
+    tokenInfo = await getFreshAccessToken();
+  } catch (e) {
+    console.error('Impossible de récupérer le jeton d\'accès Grist pour les pièces jointes :', e);
+  }
+
+  const slotsHtml = photos.map(p => {
+    const src = resolveImageValue(p.url, tokenInfo);
+    const img = src
+      ? '<img src="' + escapeHtml(src) + '" alt="photo" />'
+      : '<div class="no-photo">Aucune photo</div>';
+    const desc = p.desc ? '<div class="desc">' + escapeHtml(p.desc) + '</div>' : '';
+    return '<div class="photo-slot">' + img + desc + '</div>';
+  }).join('');
+
+  // Le modal peut avoir été fermé pendant le chargement ; on ne réinjecte que s'il est toujours ouvert
+  const stillOpen = document.getElementById('photo-modal-overlay');
+  if (stillOpen) {
+    const grid = stillOpen.querySelector('.' + gridClass.split(' ').join('.'));
+    if (grid) grid.innerHTML = slotsHtml;
+  }
 };
 
 // Échappe une chaîne pour l'insérer en toute sécurité comme littéral JS entre apostrophes,
@@ -336,112 +384,124 @@ function createStructureIcon(imageUrl, color) {
   });
 }
 
-function drawRecords(records, mappings) {
+async function drawRecords(records, mappings) {
   layerGroup.clearLayers();
   const bounds = [];
 
-  records.forEach(record => {
-    const mapped = grist.mapColumnNames(record) || record;
+  let tokenInfo = null;
+  try {
+    tokenInfo = await getFreshAccessToken();
+  } catch (e) {
+    console.error('Impossible de récupérer le jeton d\'accès Grist pour les pièces jointes :', e);
+  }
 
-    // ------------------ Groupe "Domaine / Parc" (polygone) ------------------
-    const wkt = mapped.PolygoneWKT;
-    if (wkt && String(wkt).trim() !== '') {
-      const polygons = parseWKT(wkt);
-      const color = mapped.CouleurDomaine || '#2e7d32'; // vert par défaut
-      const nomDomaine = mapped.NomDomaine || 'Domaine';
-      const superficie = mapped.SuperficieDomaine || '—';
-      const protection = mapped.ProtectionDomaine || '—';
+  records.forEach((record, index) => {
+    try {
+      const mapped = grist.mapColumnNames(record) || record;
 
-      const photoDomaineId = 'photo-domaine-' + Math.random().toString(36).slice(2);
-      window.__photoStore[photoDomaineId] = [
-        { url: mapped.PhotoDomaine || '', desc: mapped.DescriptionPhotoDomaine || '' }
-      ];
+      // ------------------ Groupe "Domaine / Parc" (polygone) ------------------
+      const wkt = mapped.PolygoneWKT;
+      if (wkt && String(wkt).trim() !== '') {
+        const polygons = parseWKT(wkt);
+        const color = mapped.CouleurDomaine || '#2e7d32'; // vert par défaut
+        const nomDomaine = mapped.NomDomaine || 'Domaine';
+        const superficie = mapped.SuperficieDomaine || '—';
+        const protection = mapped.ProtectionDomaine || '—';
 
-      const domaineCardHtml =
-        '<div class="structure-card">' +
-          '<h3>' + escapeHtml(nomDomaine) + '</h3>' +
-          '<div class="row"><b>Est. Superficie (ha) :</b> ' + escapeHtml(superficie) + '</div>' +
-          '<div class="row"><b>Protection(s) :</b> ' + escapeHtml(protection) + '</div>' +
-          '<div class="buttons">' +
-            '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoDomaineId + '\', ' + jsStringLiteral(nomDomaine) + ');">📷 Photo</a>' +
-          '</div>' +
-        '</div>';
+        const photoDomaineId = 'photo-domaine-' + Math.random().toString(36).slice(2);
+        window.__photoStore[photoDomaineId] = [
+          { url: mapped.PhotoDomaine || '', desc: mapped.DescriptionPhotoDomaine || '' }
+        ];
 
-      polygons.forEach(rings => {
-        const poly = L.polygon(rings, {
-          color: color,
-          fillColor: color,
-          fillOpacity: 0.35,
-          weight: 2
+        const domaineCardHtml =
+          '<div class="structure-card">' +
+            '<h3>' + escapeHtml(nomDomaine) + '</h3>' +
+            '<div class="row"><b>Est. Superficie (ha) :</b> ' + escapeHtml(superficie) + '</div>' +
+            '<div class="row"><b>Protection(s) :</b> ' + escapeHtml(protection) + '</div>' +
+            '<div class="buttons">' +
+              '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoDomaineId + '\', ' + jsStringLiteral(nomDomaine) + ');">📷 Photo</a>' +
+            '</div>' +
+          '</div>';
+
+        polygons.forEach(rings => {
+          const poly = L.polygon(rings, {
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.35,
+            weight: 2
+          }).addTo(layerGroup);
+
+          poly.on('mouseover', function () { this.setStyle({ weight: 3, fillOpacity: 0.55 }); });
+          poly.on('mouseout', function () { this.setStyle({ weight: 2, fillOpacity: 0.35 }); });
+
+          attachHoverCard(poly, domaineCardHtml, { closeButton: false });
+
+          rings.forEach(ring => ring.forEach(pt => bounds.push(pt)));
+        });
+      }
+
+      // ------------------ Groupe "Structure" (point) ------------------
+      const lat = parseFrenchNumber(mapped.Latitude);
+      const lng = parseFrenchNumber(mapped.Longitude);
+      // (0,0) = cellule vide interprétée par Grist comme 0 -> on l'ignore (sinon un pin apparaît au milieu de l'océan)
+      const hasValidCoords = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
+      if (hasValidCoords) {
+        const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
+        const nom = mapped.NomStructure || 'Structure';
+        const imageSrc = resolveImageValue(mapped.ImageStructure, tokenInfo);
+
+        const marker = L.marker([lat, lng], {
+          icon: createStructureIcon(imageSrc, color)
         }).addTo(layerGroup);
 
-        poly.on('mouseover', function () { this.setStyle({ weight: 3, fillOpacity: 0.55 }); });
-        poly.on('mouseout', function () { this.setStyle({ weight: 2, fillOpacity: 0.35 }); });
+        const domaine = mapped.DomaineStructure || '—';
+        const etat = mapped.EtatStructure || '—';
+        const securite = mapped.SecuriteStructure || '—';
+        const lienFiche = mapped.LienFicheStructure || '';
+        const lienFormulaire = mapped.LienFormulaireStructure || '';
+        const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
-        attachHoverCard(poly, domaineCardHtml, { closeButton: false });
+        // Bouton "Voir la fiche" : lien normal si une fiche existe, sinon affiche un message inline (pas d'alerte navigateur)
+        const warningId = 'warn-' + Math.random().toString(36).slice(2);
+        const btnFiche = lienFiche
+          ? '<a class="btn btn-fiche" href="' + escapeHtml(lienFiche) + '" target="_blank" rel="noopener">📄 Voir la fiche</a>'
+          : '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warningId + '\').classList.add(\'visible\');">📄 Voir la fiche</a>';
 
-        rings.forEach(ring => ring.forEach(pt => bounds.push(pt)));
-      });
-    }
+        const warningBox = lienFiche
+          ? ''
+          : '<div class="warning-box" id="' + warningId + '">Il n\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.</div>';
 
-    // ------------------ Groupe "Structure" (point) ------------------
-    const lat = Number(mapped.Latitude);
-    const lng = Number(mapped.Longitude);
-    // (0,0) = cellule vide interprétée par Grist comme 0 -> on l'ignore (sinon un pin apparaît au milieu de l'océan)
-    const hasValidCoords = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
-    if (hasValidCoords) {
-      const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
-      const nom = mapped.NomStructure || 'Structure';
-      const image = mapped.ImageStructure || '';
+        // Stockage des 4 emplacements photo de la structure
+        const photoStructureId = 'photo-structure-' + Math.random().toString(36).slice(2);
+        window.__photoStore[photoStructureId] = [
+          { url: mapped.Photo1Structure || '', desc: mapped.DescriptionPhoto1Structure || '' },
+          { url: mapped.Photo2Structure || '', desc: mapped.DescriptionPhoto2Structure || '' },
+          { url: mapped.Photo3Structure || '', desc: mapped.DescriptionPhoto3Structure || '' },
+          { url: mapped.Photo4Structure || '', desc: mapped.DescriptionPhoto4Structure || '' }
+        ];
 
-      const marker = L.marker([lat, lng], {
-        icon: createStructureIcon(image, color)
-      }).addTo(layerGroup);
+        const cardHtml =
+          '<div class="structure-card">' +
+            '<h3>' + escapeHtml(nom) + '</h3>' +
+            '<div class="row"><b>Domaine :</b> ' + escapeHtml(domaine) + '</div>' +
+            '<div class="row"><b>État :</b> ' + escapeHtml(etat) + '</div>' +
+            '<div class="row"><b>Sécurité :</b> ' + escapeHtml(securite) + '</div>' +
+            '<div class="buttons">' +
+              btnFiche +
+              (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
+              '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
+              '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de la structure</a>' +
+            '</div>' +
+            warningBox +
+          '</div>';
 
-      const domaine = mapped.DomaineStructure || '—';
-      const etat = mapped.EtatStructure || '—';
-      const securite = mapped.SecuriteStructure || '—';
-      const lienFiche = mapped.LienFicheStructure || '';
-      const lienFormulaire = mapped.LienFormulaireStructure || '';
-      const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+        attachHoverCard(marker, cardHtml);
 
-      // Bouton "Voir la fiche" : lien normal si une fiche existe, sinon affiche un message inline (pas d'alerte navigateur)
-      const warningId = 'warn-' + Math.random().toString(36).slice(2);
-      const btnFiche = lienFiche
-        ? '<a class="btn btn-fiche" href="' + escapeHtml(lienFiche) + '" target="_blank" rel="noopener">📄 Voir la fiche</a>'
-        : '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warningId + '\').classList.add(\'visible\');">📄 Voir la fiche</a>';
-
-      const warningBox = lienFiche
-        ? ''
-        : '<div class="warning-box" id="' + warningId + '">Il n\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.</div>';
-
-      // Stockage des 4 emplacements photo de la structure
-      const photoStructureId = 'photo-structure-' + Math.random().toString(36).slice(2);
-      window.__photoStore[photoStructureId] = [
-        { url: mapped.Photo1Structure || '', desc: mapped.DescriptionPhoto1Structure || '' },
-        { url: mapped.Photo2Structure || '', desc: mapped.DescriptionPhoto2Structure || '' },
-        { url: mapped.Photo3Structure || '', desc: mapped.DescriptionPhoto3Structure || '' },
-        { url: mapped.Photo4Structure || '', desc: mapped.DescriptionPhoto4Structure || '' }
-      ];
-
-      const cardHtml =
-        '<div class="structure-card">' +
-          '<h3>' + escapeHtml(nom) + '</h3>' +
-          '<div class="row"><b>Domaine :</b> ' + escapeHtml(domaine) + '</div>' +
-          '<div class="row"><b>État :</b> ' + escapeHtml(etat) + '</div>' +
-          '<div class="row"><b>Sécurité :</b> ' + escapeHtml(securite) + '</div>' +
-          '<div class="buttons">' +
-            btnFiche +
-            (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
-            '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
-            '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de la structure</a>' +
-          '</div>' +
-          warningBox +
-        '</div>';
-
-      attachHoverCard(marker, cardHtml);
-
-      bounds.push([lat, lng]);
+        bounds.push([lat, lng]);
+      }
+    } catch (err) {
+      // Une erreur sur cette ligne ne doit jamais empêcher l'affichage des autres
+      console.error('Erreur lors du traitement de la ligne ' + index + ' :', err, record);
     }
   });
 
@@ -467,8 +527,8 @@ grist.ready({
       description: 'Ex : 12 ha ou 120 000 m²' },
     { name: 'ProtectionDomaine', title: '🟩 Domaine/Parc — Protection', type: 'Text', optional: true,
       description: 'Ex : Site classé, Natura 2000...' },
-    { name: 'PhotoDomaine', title: '🟩 Domaine/Parc — Photo (URL)', type: 'Text', optional: true,
-      description: 'URL de la photo du domaine' },
+    { name: 'PhotoDomaine', title: '🟩 Domaine/Parc — Photo', type: 'Text,Attachments', optional: true,
+      description: 'URL d\'une image OU colonne "Pièce jointe" Grist (upload direct)' },
     { name: 'DescriptionPhotoDomaine', title: '🟩 Domaine/Parc — Description photo', type: 'Text', optional: true,
       description: 'Légende affichée sous la photo' },
 
@@ -487,16 +547,20 @@ grist.ready({
       description: 'URL vers la fiche visite existante de cette structure' },
     { name: 'LienFormulaireStructure', title: '🟥 Structure — Lien formulaire (URL)', type: 'Text', optional: true,
       description: 'URL vers le formulaire "créer une fiche visite" (peut être la même URL pour toutes les lignes)' },
-    { name: 'Photo1Structure', title: '🟥 Structure — Photo 1 (URL)', type: 'Text', optional: true },
+    { name: 'Photo1Structure', title: '🟥 Structure — Photo 1', type: 'Text,Attachments', optional: true,
+      description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
     { name: 'DescriptionPhoto1Structure', title: '🟥 Structure — Description photo 1', type: 'Text', optional: true },
-    { name: 'Photo2Structure', title: '🟥 Structure — Photo 2 (URL)', type: 'Text', optional: true },
+    { name: 'Photo2Structure', title: '🟥 Structure — Photo 2', type: 'Text,Attachments', optional: true,
+      description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
     { name: 'DescriptionPhoto2Structure', title: '🟥 Structure — Description photo 2', type: 'Text', optional: true },
-    { name: 'Photo3Structure', title: '🟥 Structure — Photo 3 (URL)', type: 'Text', optional: true },
+    { name: 'Photo3Structure', title: '🟥 Structure — Photo 3', type: 'Text,Attachments', optional: true,
+      description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
     { name: 'DescriptionPhoto3Structure', title: '🟥 Structure — Description photo 3', type: 'Text', optional: true },
-    { name: 'Photo4Structure', title: '🟥 Structure — Photo 4 (URL)', type: 'Text', optional: true },
+    { name: 'Photo4Structure', title: '🟥 Structure — Photo 4', type: 'Text,Attachments', optional: true,
+      description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
     { name: 'DescriptionPhoto4Structure', title: '🟥 Structure — Description photo 4', type: 'Text', optional: true },
-    { name: 'ImageStructure', title: '🟥 Structure — Image (URL)', type: 'Text', optional: true,
-      description: 'URL d\'une image/icône (ex: pont). Si vide -> pin rouge par défaut.' },
+    { name: 'ImageStructure', title: '🟥 Structure — Image du pin', type: 'Text,Attachments', optional: true,
+      description: 'URL d\'une image OU colonne "Pièce jointe" Grist (ex: pont). Si vide -> pin rouge par défaut.' },
     { name: 'CouleurStructure', title: '🟥 Structure — Couleur du pin', type: 'Text', optional: true,
       description: 'Utilisée seulement si pas d\'image. Ex : #1565c0 (sinon rouge par défaut)' }
   ],
