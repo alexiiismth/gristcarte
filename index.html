@@ -103,11 +103,9 @@
   }
   .photo-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(240px, 340px));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 340px));
+    justify-content: center;
     gap: 18px;
-  }
-  .photo-grid.single {
-    grid-template-columns: minmax(240px, 420px);
   }
   .photo-slot {
     display: flex;
@@ -141,6 +139,15 @@
     color: #444;
     text-align: center;
   }
+  .fiche-modal {
+    min-width: 320px;
+  }
+  .modal-row {
+    font-size: 14px;
+    margin: 6px 0;
+    color: #333;
+  }
+  .modal-row b { color: #000; }
 </style>
 </head>
 <body>
@@ -261,28 +268,11 @@ function escapeHtml(str) {
 
 // Stockage global des photos par identifiant unique (évite les soucis d'échappement JSON dans le HTML)
 window.__photoStore = {};
+// Stockage global des fiches de visite complètes
+window.__ficheStore = {};
 
-// Construit et affiche la fenêtre modale avec les photos + descriptions
-window.showPhotoModal = async function (storeId, title) {
-  window.closePhotoModal();
-
-  const photos = window.__photoStore[storeId] || [];
-  const gridClass = photos.length <= 1 ? 'photo-grid single' : 'photo-grid';
-
-  // Affiche d'abord un état "chargement" pendant qu'on résout les URLs des pièces jointes
-  const overlay = document.createElement('div');
-  overlay.className = 'photo-modal-overlay';
-  overlay.id = 'photo-modal-overlay';
-  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
-  overlay.innerHTML =
-    '<div class="photo-modal">' +
-      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
-      '<h3>' + escapeHtml(title || 'Photos') + '</h3>' +
-      '<div class="' + gridClass + '"><p>Chargement des photos…</p></div>' +
-    '</div>';
-  document.body.appendChild(overlay);
-
-  // Résout chaque photo : soit une URL texte, soit une pièce jointe Grist (nécessite un jeton)
+// Résout une liste de photos (URL ou pièce jointe Grist) et retourne le HTML des emplacements
+async function resolvePhotoSlotsHtml(photos) {
   let tokenInfo = null;
   let tokenError = '';
   try {
@@ -292,7 +282,7 @@ window.showPhotoModal = async function (storeId, title) {
     tokenError = 'Erreur d\'accès aux pièces jointes : ' + (e && e.message ? e.message : e);
   }
 
-  const slotsHtml = photos.map((p, i) => {
+  return photos.map((p, i) => {
     const hasRawValue = Array.isArray(p.url) ? p.url.length > 0 : !!p.url;
     const src = resolveImageValue(p.url, tokenInfo);
     let img;
@@ -307,14 +297,72 @@ window.showPhotoModal = async function (storeId, title) {
     } else {
       img = '<div class="no-photo">Aucune photo</div>';
     }
-    const desc = p.desc ? '<div class="desc">' + escapeHtml(p.desc) + '</div>' : '';
+    const desc = '<div class="desc">' + escapeHtml(p.desc || '—') + '</div>';
     return '<div class="photo-slot">' + img + desc + '</div>';
   }).join('');
+}
+
+// Construit et affiche la fenêtre modale avec les photos + descriptions
+window.showPhotoModal = async function (storeId, title) {
+  window.closePhotoModal();
+
+  const photos = window.__photoStore[storeId] || [];
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      '<h3>' + escapeHtml(title || 'Photos') + '</h3>' +
+      '<div class="photo-grid"><p>Chargement des photos…</p></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  const slotsHtml = await resolvePhotoSlotsHtml(photos);
 
   // Le modal peut avoir été fermé pendant le chargement ; on ne réinjecte que s'il est toujours ouvert
   const stillOpen = document.getElementById('photo-modal-overlay');
   if (stillOpen) {
-    const grid = stillOpen.querySelector('.' + gridClass.split(' ').join('.'));
+    const grid = stillOpen.querySelector('.photo-grid');
+    if (grid) grid.innerHTML = slotsHtml;
+  }
+};
+
+// Construit et affiche la fiche de visite complète (infos + 5 photos)
+window.showFicheModal = async function (storeId) {
+  window.closePhotoModal();
+
+  const data = window.__ficheStore[storeId];
+  if (!data) return;
+
+  const rowsHtml =
+    '<div class="modal-row"><b>Inspecteur(s) :</b> ' + escapeHtml(data.inspecteurs || '—') + '</div>' +
+    '<div class="modal-row"><b>Date de la visite :</b> ' + escapeHtml(data.date || '—') + '</div>' +
+    '<div class="modal-row"><b>Nom complet structure :</b> ' + escapeHtml(data.nomComplet || '—') + '</div>' +
+    '<div class="modal-row"><b>Description :</b> ' + escapeHtml(data.description || '—') + '</div>' +
+    '<div class="modal-row"><b>État structurel :</b> ' + escapeHtml(data.etatStructurel || '—') + '</div>' +
+    '<div class="modal-row"><b>État sécurité usager :</b> ' + escapeHtml(data.etatSecurite || '—') + '</div>';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal fiche-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      '<h3>📄 Fiche visite</h3>' +
+      rowsHtml +
+      '<div class="photo-grid" style="margin-top:16px;"><p>Chargement des photos…</p></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  const slotsHtml = await resolvePhotoSlotsHtml(data.photos);
+
+  const stillOpen = document.getElementById('photo-modal-overlay');
+  if (stillOpen) {
+    const grid = stillOpen.querySelector('.photo-grid');
     if (grid) grid.innerHTML = slotsHtml;
   }
 };
@@ -477,15 +525,48 @@ async function drawRecords(records, mappings) {
         const lienFormulaire = mapped.LienFormulaireStructure || '';
         const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
-        // Bouton "Voir la fiche" : lien normal si une fiche existe, sinon affiche un message inline (pas d'alerte navigateur)
-        const warningId = 'warn-' + Math.random().toString(36).slice(2);
-        const btnFiche = lienFiche
-          ? '<a class="btn btn-fiche" href="' + escapeHtml(lienFiche) + '" target="_blank" rel="noopener">📄 Voir la fiche</a>'
-          : '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warningId + '\').classList.add(\'visible\');">📄 Voir la fiche</a>';
+        // Données de la fiche visite interne
+        const ficheInspecteurs = mapped.InspecteursFiche || '';
+        const ficheDate = mapped.DateVisiteFiche || '';
+        const ficheNomComplet = mapped.NomCompletStructureFiche || '';
+        const ficheDescription = mapped.DescriptionFiche || '';
+        const ficheEtatStructurel = mapped.EtatStructurelFiche || '';
+        const ficheEtatSecurite = mapped.EtatSecuriteUsagerFiche || '';
+        const fichePhotos = [
+          { url: mapped.PhotoFiche1 || '', desc: mapped.DescriptionPhotoFiche1 || '' },
+          { url: mapped.PhotoFiche2 || '', desc: mapped.DescriptionPhotoFiche2 || '' },
+          { url: mapped.PhotoFiche3 || '', desc: mapped.DescriptionPhotoFiche3 || '' },
+          { url: mapped.PhotoFiche4 || '', desc: mapped.DescriptionPhotoFiche4 || '' },
+          { url: mapped.PhotoFiche5 || '', desc: mapped.DescriptionPhotoFiche5 || '' }
+        ];
+        const fichePhotoPresente = fichePhotos.some(p => Array.isArray(p.url) ? p.url.length > 0 : !!p.url);
+        const ficheExiste = !!(ficheInspecteurs || ficheDate || ficheNomComplet || ficheDescription ||
+          ficheEtatStructurel || ficheEtatSecurite || fichePhotoPresente);
 
-        const warningBox = lienFiche
-          ? ''
-          : '<div class="warning-box" id="' + warningId + '">Il n\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.</div>';
+        // Bouton "Voir la fiche" : priorité au lien externe s'il existe, sinon la fiche interne, sinon message
+        const warningId = 'warn-' + Math.random().toString(36).slice(2);
+        let btnFiche, warningBox;
+
+        if (lienFiche) {
+          btnFiche = '<a class="btn btn-fiche" href="' + escapeHtml(lienFiche) + '" target="_blank" rel="noopener">📄 Voir la fiche</a>';
+          warningBox = '';
+        } else if (ficheExiste) {
+          const ficheId = 'fiche-' + Math.random().toString(36).slice(2);
+          window.__ficheStore[ficheId] = {
+            inspecteurs: ficheInspecteurs,
+            date: ficheDate,
+            nomComplet: ficheNomComplet,
+            description: ficheDescription,
+            etatStructurel: ficheEtatStructurel,
+            etatSecurite: ficheEtatSecurite,
+            photos: fichePhotos
+          };
+          btnFiche = '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showFicheModal(\'' + ficheId + '\');">📄 Voir la fiche</a>';
+          warningBox = '';
+        } else {
+          btnFiche = '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warningId + '\').classList.add(\'visible\');">📄 Voir la fiche</a>';
+          warningBox = '<div class="warning-box" id="' + warningId + '">Il n\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.</div>';
+        }
 
         // Stockage des 4 emplacements photo de la structure
         const photoStructureId = 'photo-structure-' + Math.random().toString(36).slice(2);
@@ -567,8 +648,24 @@ grist.ready({
       description: 'Ex : Bon état, À surveiller, Dégradé...' },
     { name: 'SecuriteStructure', title: '🟥 Structure — Sécurité', type: 'Text', optional: true,
       description: 'Ex : Sécurisée, À risque...' },
-    { name: 'LienFicheStructure', title: '🟥 Structure — Lien fiche visite (URL)', type: 'Text', optional: true,
-      description: 'URL vers la fiche visite existante de cette structure' },
+    { name: 'LienFicheStructure', title: '🟥 Structure — Lien fiche visite (URL, optionnel)', type: 'Text', optional: true,
+      description: 'Si rempli : ouvre ce lien externe au clic. Sinon, affiche la fiche interne ci-dessous.' },
+    { name: 'InspecteursFiche', title: '🟥 Fiche visite — Inspecteur(s)', type: 'Text', optional: true },
+    { name: 'DateVisiteFiche', title: '🟥 Fiche visite — Date de la visite', type: 'Text,Date,DateTime,Any', optional: true },
+    { name: 'NomCompletStructureFiche', title: '🟥 Fiche visite — Nom complet structure', type: 'Text', optional: true },
+    { name: 'DescriptionFiche', title: '🟥 Fiche visite — Description', type: 'Text', optional: true },
+    { name: 'EtatStructurelFiche', title: '🟥 Fiche visite — État structurel', type: 'Text', optional: true },
+    { name: 'EtatSecuriteUsagerFiche', title: '🟥 Fiche visite — État sécurité usager', type: 'Text', optional: true },
+    { name: 'PhotoFiche1', title: '🟥 Fiche visite — Photo 1', type: 'Text,Attachments', optional: true },
+    { name: 'DescriptionPhotoFiche1', title: '🟥 Fiche visite — Description photo 1', type: 'Text', optional: true },
+    { name: 'PhotoFiche2', title: '🟥 Fiche visite — Photo 2', type: 'Text,Attachments', optional: true },
+    { name: 'DescriptionPhotoFiche2', title: '🟥 Fiche visite — Description photo 2', type: 'Text', optional: true },
+    { name: 'PhotoFiche3', title: '🟥 Fiche visite — Photo 3', type: 'Text,Attachments', optional: true },
+    { name: 'DescriptionPhotoFiche3', title: '🟥 Fiche visite — Description photo 3', type: 'Text', optional: true },
+    { name: 'PhotoFiche4', title: '🟥 Fiche visite — Photo 4', type: 'Text,Attachments', optional: true },
+    { name: 'DescriptionPhotoFiche4', title: '🟥 Fiche visite — Description photo 4', type: 'Text', optional: true },
+    { name: 'PhotoFiche5', title: '🟥 Fiche visite — Photo 5', type: 'Text,Attachments', optional: true },
+    { name: 'DescriptionPhotoFiche5', title: '🟥 Fiche visite — Description photo 5', type: 'Text', optional: true },
     { name: 'LienFormulaireStructure', title: '🟥 Structure — Lien formulaire (URL)', type: 'Text', optional: true,
       description: 'URL vers le formulaire "créer une fiche visite" (peut être la même URL pour toutes les lignes)' },
     { name: 'Photo1Structure', title: '🟥 Structure — Photo 1', type: 'Text,Attachments', optional: true,
