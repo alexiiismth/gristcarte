@@ -389,6 +389,45 @@ function formatVisitLabel(raw) {
   return 'Visite (date inconnue)';
 }
 
+// -------------------------------------------------------------------
+// Détection géographique : une structure est-elle à l'intérieur d'un polygone de domaine ?
+// -------------------------------------------------------------------
+
+// Test "point dans un anneau" par ray-casting. point = [lat, lng], ring = [[lat,lng], ...]
+function pointInRing(point, ring) {
+  const [py, px] = point; // on utilise (lat, lng) comme (y, x)
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = ring[i][0], xi = ring[i][1];
+    const yj = ring[j][0], xj = ring[j][1];
+    const intersect = ((yi > py) !== (yj > py)) &&
+      (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Un "polygone" ici = [anneauExterieur, trou1, trou2, ...] (format retourné par parseWKT)
+function pointInPolygonWithHoles(point, rings) {
+  if (!rings || rings.length === 0) return false;
+  if (!pointInRing(point, rings[0])) return false; // pas dans l'anneau extérieur
+  for (let i = 1; i < rings.length; i++) {
+    if (pointInRing(point, rings[i])) return false; // dans un trou -> exclu
+  }
+  return true;
+}
+
+// Cherche le nom du premier domaine dont un des polygones contient ce point
+function findDomaineForPoint(lat, lng, domainePolygonsList) {
+  const point = [lat, lng];
+  for (const entry of domainePolygonsList) {
+    for (const rings of entry.polygons) {
+      if (pointInPolygonWithHoles(point, rings)) return entry.name;
+    }
+  }
+  return null;
+}
+
 // Convertit une valeur quelconque (texte, email, référence Grist, liste) en texte lisible
 function formatTextValue(value) {
   if (value === null || value === undefined || value === '') return '';
@@ -673,6 +712,10 @@ async function drawRecords(records, mappings) {
     ];
   }
 
+  // Liste des polygones de domaine (remplie pendant leur traitement ci-dessous), utilisée ensuite
+  // pour détecter automatiquement dans quel domaine se trouve chaque structure
+  const domainePolygonsGlobal = [];
+
   records.forEach((record, index) => {
     try {
       const mapped = grist.mapColumnNames(record) || record;
@@ -681,6 +724,7 @@ async function drawRecords(records, mappings) {
       const wkt = mapped.PolygoneWKT;
       if (wkt && String(wkt).trim() !== '') {
         const polygons = parseWKT(wkt);
+        domainePolygonsGlobal.push({ name: mapped.NomDomaine || 'Domaine', polygons: polygons });
         const color = mapped.CouleurDomaine || '#2e7d32'; // vert par défaut
         const nomDomaine = mapped.NomDomaine || 'Domaine';
         const superficie = mapped.SuperficieDomaine || '—';
@@ -830,7 +874,8 @@ async function drawRecords(records, mappings) {
         icon: createStructureIcon(imageSrc, color)
       }).addTo(layerGroup);
 
-      const domaine = mapped.DomaineStructure || '—';
+      const domaineAuto = findDomaineForPoint(lat, lng, domainePolygonsGlobal);
+      const domaine = domaineAuto || mapped.DomaineStructure || '—';
       const etat = mapped.EtatStructure || '—';
       const securite = mapped.SecuriteStructure || '—';
       const lienFiche = mapped.LienFicheStructure || '';
