@@ -146,6 +146,28 @@
   .fiche-modal {
     min-width: 320px;
   }
+  .fiche-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 8px;
+  }
+  .fiche-tab {
+    background: #eee;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px 6px 0 0;
+    font-size: 13px;
+    cursor: pointer;
+    color: #333;
+  }
+  .fiche-tab.active {
+    background: #1565c0;
+    color: #fff;
+    font-weight: 600;
+  }
   .modal-row {
     font-size: 14px;
     margin: 6px 0;
@@ -298,6 +320,23 @@ function formatVisitLabel(raw) {
   return 'Visite (date inconnue)';
 }
 
+// Convertit une valeur quelconque (texte, email, référence Grist, liste) en texte lisible
+function formatTextValue(value) {
+  if (value === null || value === undefined || value === '') return '';
+  if (Array.isArray(value)) {
+    // Ignore un éventuel préfixe d'encodage Grist ('L' pour "list")
+    const items = (value[0] === 'L') ? value.slice(1) : value;
+    return items.map(formatTextValue).filter(Boolean).join(', ');
+  }
+  if (typeof value === 'object') {
+    const name = value.name || value.Name || value.label || '';
+    const email = value.email || value.Email || '';
+    const combined = [name, email].filter(Boolean).join(' - ');
+    return combined || JSON.stringify(value);
+  }
+  return String(value);
+}
+
 // Formate une date pour l'affichage : gère les nombres (colonnes Date Grist = secondes epoch) et le texte brut
 function formatDateValue(value) {
   if (value === null || value === undefined || value === '') return '';
@@ -391,20 +430,22 @@ window.showPhotoModal = async function (storeId, title) {
   }
 };
 
-// Construit et affiche la fiche de visite complète (infos + 5 photos)
+// Construit et affiche la fiche de visite (une ou plusieurs visites, avec onglets si plusieurs)
 window.showFicheModal = async function (storeId) {
   window.closePhotoModal();
 
-  const data = window.__ficheStore[storeId];
-  if (!data) return;
+  const group = window.__ficheStore[storeId];
+  if (!group || !group.visits || group.visits.length === 0) return;
 
-  const rowsHtml =
-    '<div class="modal-row"><b>Inspecteur(s) :</b> ' + escapeHtml(data.inspecteurs || '—') + '</div>' +
-    '<div class="modal-row"><b>Date de la visite :</b> ' + escapeHtml(data.date || '—') + '</div>' +
-    '<div class="modal-row"><b>Nom complet structure :</b> ' + escapeHtml(data.nomComplet || '—') + '</div>' +
-    '<div class="modal-row"><b>Description :</b> ' + escapeHtml(data.description || '—') + '</div>' +
-    '<div class="modal-row"><b>État structurel :</b> ' + escapeHtml(data.etatStructurel || '—') + '</div>' +
-    '<div class="modal-row"><b>État sécurité usager :</b> ' + escapeHtml(data.etatSecurite || '—') + '</div>';
+  const visits = group.visits;
+  const showTabs = visits.length > 1;
+
+  const tabsHtml = showTabs
+    ? '<div class="fiche-tabs">' + visits.map((v, i) =>
+        '<button class="fiche-tab' + (i === 0 ? ' active' : '') + '" onclick="window.__ficheSwitchTab(\'' + storeId + '\', ' + i + ', this)">' +
+        escapeHtml(v.label) + '</button>'
+      ).join('') + '</div>'
+    : '';
 
   const overlay = document.createElement('div');
   overlay.className = 'photo-modal-overlay';
@@ -413,19 +454,52 @@ window.showFicheModal = async function (storeId) {
   overlay.innerHTML =
     '<div class="photo-modal fiche-modal">' +
       '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
-      '<h3>📄 Fiche visite</h3>' +
-      rowsHtml +
-      '<div class="photo-grid" style="margin-top:16px;"><p>Chargement des photos…</p></div>' +
+      '<h3>📄 ' + (showTabs ? 'Fiches visites' : 'Fiche visite') + '</h3>' +
+      tabsHtml +
+      '<div id="fiche-content-area"><p>Chargement…</p></div>' +
     '</div>';
   document.body.appendChild(overlay);
 
-  const slotsHtml = await resolvePhotoSlotsHtml(data.photos);
+  await window.__ficheRenderTab(storeId, 0);
+};
+
+// Affiche le contenu (infos + photos) d'une visite précise dans la fiche déjà ouverte
+window.__ficheRenderTab = async function (storeId, idx) {
+  const group = window.__ficheStore[storeId];
+  if (!group) return;
+  const visit = group.visits[idx];
+  if (!visit) return;
+
+  const rowsHtml =
+    '<div class="modal-row"><b>Inspecteur(s) :</b> ' + escapeHtml(visit.data.inspecteurs || '—') + '</div>' +
+    '<div class="modal-row"><b>Date de la visite :</b> ' + escapeHtml(visit.data.date || '—') + '</div>' +
+    '<div class="modal-row"><b>Nom complet structure :</b> ' + escapeHtml(visit.data.nomComplet || '—') + '</div>' +
+    '<div class="modal-row"><b>Description :</b> ' + escapeHtml(visit.data.description || '—') + '</div>' +
+    '<div class="modal-row"><b>État structurel :</b> ' + escapeHtml(visit.data.etatStructurel || '—') + '</div>' +
+    '<div class="modal-row"><b>État sécurité usager :</b> ' + escapeHtml(visit.data.etatSecurite || '—') + '</div>';
+
+  const contentArea = document.getElementById('fiche-content-area');
+  if (contentArea) {
+    contentArea.innerHTML = rowsHtml + '<div class="photo-grid" style="margin-top:16px;"><p>Chargement des photos…</p></div>';
+  }
+
+  const slotsHtml = await resolvePhotoSlotsHtml(visit.data.photos);
 
   const stillOpen = document.getElementById('photo-modal-overlay');
   if (stillOpen) {
-    const grid = stillOpen.querySelector('.photo-grid');
+    const grid = stillOpen.querySelector('#fiche-content-area .photo-grid');
     if (grid) grid.innerHTML = slotsHtml;
   }
+};
+
+// Change l'onglet actif (visite affichée) dans la fiche
+window.__ficheSwitchTab = function (storeId, idx, btnEl) {
+  const overlay = document.getElementById('photo-modal-overlay');
+  if (overlay) {
+    overlay.querySelectorAll('.fiche-tab').forEach(btn => btn.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+  }
+  window.__ficheRenderTab(storeId, idx);
 };
 
 // Échappe une chaîne pour l'insérer en toute sécurité comme littéral JS entre apostrophes,
@@ -632,7 +706,7 @@ async function drawRecords(records, mappings) {
       // Construit la liste des visites : une entrée par ligne du groupe contenant des données de fiche
       const visits = [];
       entries.forEach(m => {
-        const ficheInspecteurs = m.InspecteursFiche || '';
+        const ficheInspecteurs = formatTextValue(m.InspecteursFiche);
         const ficheDate = m.DateVisiteFiche || '';
         const ficheNomComplet = m.NomCompletStructureFiche || '';
         const ficheDescription = m.DescriptionFiche || '';
@@ -764,7 +838,8 @@ grist.ready({
       description: 'Ex : Sécurisée, À risque...' },
     { name: 'LienFicheStructure', title: '🟥 Structure — Lien fiche visite (URL, optionnel)', type: 'Text', optional: true,
       description: 'Si rempli : ouvre ce lien externe au clic. Sinon, affiche la fiche interne ci-dessous.' },
-    { name: 'InspecteursFiche', title: '🟥 Fiche visite — Inspecteur(s)', type: 'Text', optional: true },
+    { name: 'InspecteursFiche', title: '🟥 Fiche visite — Inspecteur(s)', type: 'Text,Choice,ChoiceList,Reference,ReferenceList,Any', optional: true,
+      description: 'Nom et/ou adresse e-mail de l\'inspecteur (tout format accepté)' },
     { name: 'DateVisiteFiche', title: '🟥 Fiche visite — Date de la visite', type: 'Text,Date,DateTime,Any', optional: true },
     { name: 'NomCompletStructureFiche', title: '🟥 Fiche visite — Nom complet structure', type: 'Text', optional: true },
     { name: 'DescriptionFiche', title: '🟥 Fiche visite — Description', type: 'Text', optional: true },
