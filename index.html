@@ -655,8 +655,8 @@ async function drawRecords(records, mappings) {
   });
 
   // ------------------ Groupe "Structure" (point) : regroupement par nom / coordonnées ------------------
-  // Plusieurs lignes peuvent partager le même nom et/ou les mêmes coordonnées GPS : chaque ligne
-  // supplémentaire est alors traitée comme une visite distincte de la même structure.
+  // Plusieurs lignes peuvent partager le même nom et/ou les mêmes coordonnées GPS (ex : la structure
+  // est décrite une fois, mais peut aussi apparaître sur plusieurs lignes).
   const structureGroups = new Map();
   records.forEach((record, index) => {
     try {
@@ -667,6 +667,71 @@ async function drawRecords(records, mappings) {
       structureGroups.get(key).push(mapped);
     } catch (err) {
       console.error('Erreur (regroupement structure) ligne ' + index + ' :', err, record);
+    }
+  });
+
+  // Table de correspondance : nom de structure normalisé -> clé de groupe (pour relier les visites par nom)
+  const nameToGroupKey = new Map();
+  structureGroups.forEach((entries, key) => {
+    entries.forEach(m => {
+      const name = (m.NomStructure || '').toString().trim().toLowerCase();
+      if (name && !nameToGroupKey.has(name)) nameToGroupKey.set(name, key);
+    });
+  });
+
+  // ------------------ Visites : collectées sur TOUTES les lignes, reliées par nom (pas par position de ligne) ------------------
+  // Une visite est reliée à sa structure via le champ "Nom complet structure" qui doit correspondre
+  // (au nom près, insensible à la casse/espaces) au champ "Nom" de la structure.
+  const visitsByGroupKey = new Map();
+  records.forEach((record, index) => {
+    try {
+      const mapped = grist.mapColumnNames(record) || record;
+
+      const ficheInspecteurs = formatTextValue(mapped.InspecteursFiche);
+      const ficheDate = mapped.DateVisiteFiche || '';
+      const ficheNomComplet = mapped.NomCompletStructureFiche || '';
+      const ficheDescription = mapped.DescriptionFiche || '';
+      const ficheEtatStructurel = mapped.EtatStructurelFiche || '';
+      const ficheEtatSecurite = mapped.EtatSecuriteUsagerFiche || '';
+      const fichePhotos = [
+        { url: mapped.PhotoFiche1 || '', desc: mapped.DescriptionPhotoFiche1 || '' },
+        { url: mapped.PhotoFiche2 || '', desc: mapped.DescriptionPhotoFiche2 || '' },
+        { url: mapped.PhotoFiche3 || '', desc: mapped.DescriptionPhotoFiche3 || '' },
+        { url: mapped.PhotoFiche4 || '', desc: mapped.DescriptionPhotoFiche4 || '' },
+        { url: mapped.PhotoFiche5 || '', desc: mapped.DescriptionPhotoFiche5 || '' }
+      ];
+      const fichePhotoPresente = fichePhotos.some(p => Array.isArray(p.url) ? p.url.length > 0 : !!p.url);
+      const ficheExiste = !!(ficheInspecteurs || ficheDate || ficheNomComplet || ficheDescription ||
+        ficheEtatStructurel || ficheEtatSecurite || fichePhotoPresente);
+      if (!ficheExiste) return; // cette ligne ne contient aucune donnée de visite
+
+      const normalizedName = ficheNomComplet.toString().trim().toLowerCase();
+      if (!normalizedName) {
+        console.warn('Visite ligne ' + index + ' ignorée : le champ "Nom complet structure" est vide, impossible de la relier à une structure.', record);
+        return;
+      }
+      const matchedKey = nameToGroupKey.get(normalizedName);
+      if (!matchedKey) {
+        console.warn('Visite ligne ' + index + ' ignorée : aucune structure ne correspond au nom "' + ficheNomComplet + '".', record);
+        return;
+      }
+
+      if (!visitsByGroupKey.has(matchedKey)) visitsByGroupKey.set(matchedKey, []);
+      visitsByGroupKey.get(matchedKey).push({
+        parsedDate: parseVisitDate(ficheDate),
+        label: formatVisitLabel(ficheDate),
+        data: {
+          inspecteurs: ficheInspecteurs,
+          date: ficheDate,
+          nomComplet: ficheNomComplet,
+          description: ficheDescription,
+          etatStructurel: ficheEtatStructurel,
+          etatSecurite: ficheEtatSecurite,
+          photos: fichePhotos
+        }
+      });
+    } catch (err) {
+      console.error('Erreur (collecte visite) ligne ' + index + ' :', err, record);
     }
   });
 
@@ -703,41 +768,8 @@ async function drawRecords(records, mappings) {
       const lienFormulaire = mapped.LienFormulaireStructure || '';
       const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
-      // Construit la liste des visites : une entrée par ligne du groupe contenant des données de fiche
-      const visits = [];
-      entries.forEach(m => {
-        const ficheInspecteurs = formatTextValue(m.InspecteursFiche);
-        const ficheDate = m.DateVisiteFiche || '';
-        const ficheNomComplet = m.NomCompletStructureFiche || '';
-        const ficheDescription = m.DescriptionFiche || '';
-        const ficheEtatStructurel = m.EtatStructurelFiche || '';
-        const ficheEtatSecurite = m.EtatSecuriteUsagerFiche || '';
-        const fichePhotos = [
-          { url: m.PhotoFiche1 || '', desc: m.DescriptionPhotoFiche1 || '' },
-          { url: m.PhotoFiche2 || '', desc: m.DescriptionPhotoFiche2 || '' },
-          { url: m.PhotoFiche3 || '', desc: m.DescriptionPhotoFiche3 || '' },
-          { url: m.PhotoFiche4 || '', desc: m.DescriptionPhotoFiche4 || '' },
-          { url: m.PhotoFiche5 || '', desc: m.DescriptionPhotoFiche5 || '' }
-        ];
-        const fichePhotoPresente = fichePhotos.some(p => Array.isArray(p.url) ? p.url.length > 0 : !!p.url);
-        const ficheExiste = !!(ficheInspecteurs || ficheDate || ficheNomComplet || ficheDescription ||
-          ficheEtatStructurel || ficheEtatSecurite || fichePhotoPresente);
-        if (!ficheExiste) return;
-
-        visits.push({
-          parsedDate: parseVisitDate(ficheDate),
-          label: formatVisitLabel(ficheDate),
-          data: {
-            inspecteurs: ficheInspecteurs,
-            date: ficheDate,
-            nomComplet: ficheNomComplet,
-            description: ficheDescription,
-            etatStructurel: ficheEtatStructurel,
-            etatSecurite: ficheEtatSecurite,
-            photos: fichePhotos
-          }
-        });
-      });
+      // Visites reliées à cette structure par nom (collectées indépendamment de la position de ligne)
+      const visits = visitsByGroupKey.get(key) || [];
 
       // Trie les visites de la plus récente à la plus ancienne (les dates non reconnues passent en dernier)
       visits.sort((a, b) => {
