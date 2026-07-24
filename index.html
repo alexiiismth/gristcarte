@@ -261,6 +261,43 @@ function parseFrenchNumber(value) {
   return Number(String(value).trim().replace(',', '.'));
 }
 
+// Clé de regroupement d'une structure : par nom (prioritaire) sinon par coordonnées GPS arrondies
+function structureGroupKey(mapped) {
+  const name = (mapped.NomStructure || '').toString().trim().toLowerCase();
+  if (name) return 'name:' + name;
+  const lat = parseFrenchNumber(mapped.Latitude);
+  const lng = parseFrenchNumber(mapped.Longitude);
+  if (Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0)) {
+    return 'coord:' + lat.toFixed(5) + ',' + lng.toFixed(5);
+  }
+  return null;
+}
+
+// Essaie d'interpréter une date de visite (nombre Grist en secondes, texte JJ/MM/AAAA, ou texte générique)
+function parseVisitDate(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (typeof raw === 'number') {
+    const d = new Date(raw * 1000); // Grist encode les dates en secondes depuis epoch
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const str = String(raw).trim();
+  const frMatch = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (frMatch) {
+    const d = new Date(parseInt(frMatch[3], 10), parseInt(frMatch[2], 10) - 1, parseInt(frMatch[1], 10));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d2 = new Date(str);
+  return isNaN(d2.getTime()) ? null : d2;
+}
+
+// Construit le libellé d'onglet "Visite du JJ/MM/AAAA"
+function formatVisitLabel(raw) {
+  const d = parseVisitDate(raw);
+  if (d) return 'Visite du ' + d.toLocaleDateString('fr-FR');
+  if (raw) return 'Visite du ' + String(raw);
+  return 'Visite (date inconnue)';
+}
+
 // Formate une date pour l'affichage : gère les nombres (colonnes Date Grist = secondes epoch) et le texte brut
 function formatDateValue(value) {
   if (value === null || value === undefined || value === '') return '';
@@ -537,56 +574,86 @@ async function drawRecords(records, mappings) {
           rings.forEach(ring => ring.forEach(pt => bounds.push(pt)));
         });
       }
+    } catch (err) {
+      // Une erreur sur cette ligne ne doit jamais empêcher l'affichage des autres
+      console.error('Erreur (domaine) lors du traitement de la ligne ' + index + ' :', err, record);
+    }
+  });
 
-      // ------------------ Groupe "Structure" (point) ------------------
-      const lat = parseFrenchNumber(mapped.Latitude);
-      const lng = parseFrenchNumber(mapped.Longitude);
-      // (0,0) = cellule vide interprétée par Grist comme 0 -> on l'ignore (sinon un pin apparaît au milieu de l'océan)
-      const hasValidCoords = Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0);
-      if (hasValidCoords) {
-        const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
-        const nom = mapped.NomStructure || 'Structure';
-        const imageSrc = resolveImageValue(mapped.ImageStructure, tokenInfo);
+  // ------------------ Groupe "Structure" (point) : regroupement par nom / coordonnées ------------------
+  // Plusieurs lignes peuvent partager le même nom et/ou les mêmes coordonnées GPS : chaque ligne
+  // supplémentaire est alors traitée comme une visite distincte de la même structure.
+  const structureGroups = new Map();
+  records.forEach((record, index) => {
+    try {
+      const mapped = grist.mapColumnNames(record) || record;
+      const key = structureGroupKey(mapped);
+      if (!key) return; // ni nom, ni coordonnées exploitables sur cette ligne
+      if (!structureGroups.has(key)) structureGroups.set(key, []);
+      structureGroups.get(key).push(mapped);
+    } catch (err) {
+      console.error('Erreur (regroupement structure) ligne ' + index + ' :', err, record);
+    }
+  });
 
-        const marker = L.marker([lat, lng], {
-          icon: createStructureIcon(imageSrc, color)
-        }).addTo(layerGroup);
+  structureGroups.forEach((entries, key) => {
+    try {
+      // Choisit l'entrée "principale" : la première du groupe qui a des coordonnées valides
+      let primary = null;
+      for (const m of entries) {
+        const la = parseFrenchNumber(m.Latitude);
+        const lo = parseFrenchNumber(m.Longitude);
+        if (Number.isFinite(la) && Number.isFinite(lo) && !(la === 0 && lo === 0)) {
+          primary = { mapped: m, lat: la, lng: lo };
+          break;
+        }
+      }
+      if (!primary) return; // aucune coordonnée valide dans tout le groupe
 
-        const domaine = mapped.DomaineStructure || '—';
-        const etat = mapped.EtatStructure || '—';
-        const securite = mapped.SecuriteStructure || '—';
-        const lienFiche = mapped.LienFicheStructure || '';
-        const lienFormulaire = mapped.LienFormulaireStructure || '';
-        const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+      const mapped = primary.mapped;
+      const lat = primary.lat;
+      const lng = primary.lng;
 
-        // Données de la fiche visite interne
-        const ficheInspecteurs = mapped.InspecteursFiche || '';
-        const ficheDate = mapped.DateVisiteFiche || '';
-        const ficheNomComplet = mapped.NomCompletStructureFiche || '';
-        const ficheDescription = mapped.DescriptionFiche || '';
-        const ficheEtatStructurel = mapped.EtatStructurelFiche || '';
-        const ficheEtatSecurite = mapped.EtatSecuriteUsagerFiche || '';
+      const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
+      const nom = mapped.NomStructure || 'Structure';
+      const imageSrc = resolveImageValue(mapped.ImageStructure, tokenInfo);
+
+      const marker = L.marker([lat, lng], {
+        icon: createStructureIcon(imageSrc, color)
+      }).addTo(layerGroup);
+
+      const domaine = mapped.DomaineStructure || '—';
+      const etat = mapped.EtatStructure || '—';
+      const securite = mapped.SecuriteStructure || '—';
+      const lienFiche = mapped.LienFicheStructure || '';
+      const lienFormulaire = mapped.LienFormulaireStructure || '';
+      const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
+
+      // Construit la liste des visites : une entrée par ligne du groupe contenant des données de fiche
+      const visits = [];
+      entries.forEach(m => {
+        const ficheInspecteurs = m.InspecteursFiche || '';
+        const ficheDate = m.DateVisiteFiche || '';
+        const ficheNomComplet = m.NomCompletStructureFiche || '';
+        const ficheDescription = m.DescriptionFiche || '';
+        const ficheEtatStructurel = m.EtatStructurelFiche || '';
+        const ficheEtatSecurite = m.EtatSecuriteUsagerFiche || '';
         const fichePhotos = [
-          { url: mapped.PhotoFiche1 || '', desc: mapped.DescriptionPhotoFiche1 || '' },
-          { url: mapped.PhotoFiche2 || '', desc: mapped.DescriptionPhotoFiche2 || '' },
-          { url: mapped.PhotoFiche3 || '', desc: mapped.DescriptionPhotoFiche3 || '' },
-          { url: mapped.PhotoFiche4 || '', desc: mapped.DescriptionPhotoFiche4 || '' },
-          { url: mapped.PhotoFiche5 || '', desc: mapped.DescriptionPhotoFiche5 || '' }
+          { url: m.PhotoFiche1 || '', desc: m.DescriptionPhotoFiche1 || '' },
+          { url: m.PhotoFiche2 || '', desc: m.DescriptionPhotoFiche2 || '' },
+          { url: m.PhotoFiche3 || '', desc: m.DescriptionPhotoFiche3 || '' },
+          { url: m.PhotoFiche4 || '', desc: m.DescriptionPhotoFiche4 || '' },
+          { url: m.PhotoFiche5 || '', desc: m.DescriptionPhotoFiche5 || '' }
         ];
         const fichePhotoPresente = fichePhotos.some(p => Array.isArray(p.url) ? p.url.length > 0 : !!p.url);
         const ficheExiste = !!(ficheInspecteurs || ficheDate || ficheNomComplet || ficheDescription ||
           ficheEtatStructurel || ficheEtatSecurite || fichePhotoPresente);
+        if (!ficheExiste) return;
 
-        // Bouton "Voir la fiche" : priorité au lien externe s'il existe, sinon la fiche interne, sinon message
-        const warningId = 'warn-' + Math.random().toString(36).slice(2);
-        let btnFiche, warningBox;
-
-        if (lienFiche) {
-          btnFiche = '<a class="btn btn-fiche" href="' + escapeHtml(lienFiche) + '" target="_blank" rel="noopener">📄 Voir la fiche</a>';
-          warningBox = '';
-        } else if (ficheExiste) {
-          const ficheId = 'fiche-' + Math.random().toString(36).slice(2);
-          window.__ficheStore[ficheId] = {
+        visits.push({
+          parsedDate: parseVisitDate(ficheDate),
+          label: formatVisitLabel(ficheDate),
+          data: {
             inspecteurs: ficheInspecteurs,
             date: ficheDate,
             nomComplet: ficheNomComplet,
@@ -594,46 +661,66 @@ async function drawRecords(records, mappings) {
             etatStructurel: ficheEtatStructurel,
             etatSecurite: ficheEtatSecurite,
             photos: fichePhotos
-          };
-          btnFiche = '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showFicheModal(\'' + ficheId + '\');">📄 Voir la fiche</a>';
-          warningBox = '';
-        } else {
-          btnFiche = '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warningId + '\').classList.add(\'visible\');">📄 Voir la fiche</a>';
-          warningBox = '<div class="warning-box" id="' + warningId + '">Il n\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.</div>';
-        }
+          }
+        });
+      });
 
-        // Stockage des 4 emplacements photo de la structure
-        const photoStructureId = 'photo-structure-' + Math.random().toString(36).slice(2);
-        window.__photoStore[photoStructureId] = [
-          { url: mapped.Photo1Structure || '', desc: mapped.DescriptionPhoto1Structure || '' },
-          { url: mapped.Photo2Structure || '', desc: mapped.DescriptionPhoto2Structure || '' },
-          { url: mapped.Photo3Structure || '', desc: mapped.DescriptionPhoto3Structure || '' },
-          { url: mapped.Photo4Structure || '', desc: mapped.DescriptionPhoto4Structure || '' }
-        ];
+      // Trie les visites de la plus récente à la plus ancienne (les dates non reconnues passent en dernier)
+      visits.sort((a, b) => {
+        if (a.parsedDate && b.parsedDate) return b.parsedDate - a.parsedDate;
+        if (a.parsedDate) return -1;
+        if (b.parsedDate) return 1;
+        return 0;
+      });
 
-        const cardHtml =
-          '<div class="structure-card">' +
-            '<h3>' + escapeHtml(nom) + '</h3>' +
-            '<div class="row"><b>Domaine :</b> ' + escapeHtml(domaine) + '</div>' +
-            '<div class="row"><b>État :</b> ' + escapeHtml(etat) + '</div>' +
-            '<div class="row"><b>Sécurité :</b> ' + escapeHtml(securite) + '</div>' +
-            '<div class="buttons">' +
-              btnFiche +
-              (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
-              '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
-              '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de la structure</a>' +
-              '<a class="btn btn-form" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + grilleEvalGlobalId + '\', ' + jsStringLiteral('Grilles d\'évaluation') + ');">📋 Grilles d\'évaluation Etat structurel / Etat sécurité usagers</a>' +
-            '</div>' +
-            warningBox +
-          '</div>';
+      // Bouton "Voir la/les fiche(s)" : libellé au singulier ou pluriel selon le nombre de visites
+      const warningId = 'warn-' + Math.random().toString(36).slice(2);
+      const labelBouton = visits.length > 1 ? '📄 Voir les fiches visites' : '📄 Voir la fiche visite';
+      let btnFiche, warningBox;
 
-        attachHoverCard(marker, cardHtml);
-
-        bounds.push([lat, lng]);
+      if (lienFiche) {
+        btnFiche = '<a class="btn btn-fiche" href="' + escapeHtml(lienFiche) + '" target="_blank" rel="noopener">' + labelBouton + '</a>';
+        warningBox = '';
+      } else if (visits.length > 0) {
+        const ficheGroupId = 'fiche-group-' + Math.random().toString(36).slice(2);
+        window.__ficheStore[ficheGroupId] = { visits: visits };
+        btnFiche = '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showFicheModal(\'' + ficheGroupId + '\');">' + labelBouton + '</a>';
+        warningBox = '';
+      } else {
+        btnFiche = '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warningId + '\').classList.add(\'visible\');">' + labelBouton + '</a>';
+        warningBox = '<div class="warning-box" id="' + warningId + '">Il n\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.</div>';
       }
+
+      // Stockage des 4 emplacements photo "initiale" de la structure (pris sur l'entrée principale)
+      const photoStructureId = 'photo-structure-' + Math.random().toString(36).slice(2);
+      window.__photoStore[photoStructureId] = [
+        { url: mapped.Photo1Structure || '', desc: mapped.DescriptionPhoto1Structure || '' },
+        { url: mapped.Photo2Structure || '', desc: mapped.DescriptionPhoto2Structure || '' },
+        { url: mapped.Photo3Structure || '', desc: mapped.DescriptionPhoto3Structure || '' },
+        { url: mapped.Photo4Structure || '', desc: mapped.DescriptionPhoto4Structure || '' }
+      ];
+
+      const cardHtml =
+        '<div class="structure-card">' +
+          '<h3>' + escapeHtml(nom) + '</h3>' +
+          '<div class="row"><b>Domaine :</b> ' + escapeHtml(domaine) + '</div>' +
+          '<div class="row"><b>État :</b> ' + escapeHtml(etat) + '</div>' +
+          '<div class="row"><b>Sécurité :</b> ' + escapeHtml(securite) + '</div>' +
+          '<div class="buttons">' +
+            btnFiche +
+            (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
+            '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
+            '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de la structure</a>' +
+            '<a class="btn btn-form" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + grilleEvalGlobalId + '\', ' + jsStringLiteral('Grilles d\'évaluation') + ');">📋 Grilles d\'évaluation Etat structurel / Etat sécurité usagers</a>' +
+          '</div>' +
+          warningBox +
+        '</div>';
+
+      attachHoverCard(marker, cardHtml);
+
+      bounds.push([lat, lng]);
     } catch (err) {
-      // Une erreur sur cette ligne ne doit jamais empêcher l'affichage des autres
-      console.error('Erreur lors du traitement de la ligne ' + index + ' :', err, record);
+      console.error('Erreur lors du traitement du groupe de structure "' + key + '" :', err);
     }
   });
 
