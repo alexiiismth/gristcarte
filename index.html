@@ -27,6 +27,11 @@
     font-size: 16px;
     color: #1a1a1a;
   }
+  .structure-card .structure-num {
+    margin: -4px 0 8px 0;
+    font-size: 11px;
+    color: #888;
+  }
   .structure-card .row {
     font-size: 13px;
     margin: 4px 0;
@@ -195,6 +200,98 @@
   .coord-toast-hide {
     opacity: 0;
   }
+
+  .structure-search-panel {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    z-index: 1000;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    width: 280px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .structure-search-row {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    gap: 6px;
+  }
+  .structure-search-row input {
+    flex: 1;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    min-width: 0;
+  }
+  .structure-search-toggle {
+    background: #eee;
+    border: none;
+    border-radius: 6px;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .structure-tree {
+    overflow-y: auto;
+    max-height: 55vh;
+    padding: 0 8px;
+    display: none;
+    border-top: 1px solid #eee;
+  }
+  .structure-tree.open {
+    display: block;
+    padding: 8px;
+  }
+  .tree-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 2px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  .tree-row:hover { background: #f2f2f2; }
+  .tree-arrow {
+    width: 14px;
+    display: inline-block;
+    text-align: center;
+    color: #666;
+    flex-shrink: 0;
+  }
+  .tree-label { flex: 1; }
+  .tree-children {
+    margin-left: 16px;
+    display: none;
+  }
+  .tree-children.open { display: block; }
+  .structure-no-result {
+    display: none;
+    font-size: 12px;
+    color: #a33;
+    background: #fdecea;
+    padding: 8px 10px;
+    margin: 0 8px;
+    border-radius: 6px;
+  }
+  .structure-search-reset {
+    font-size: 12px;
+    color: #1565c0;
+    cursor: pointer;
+    padding: 8px;
+    border-top: 1px solid #eee;
+    text-align: center;
+  }
+  .structure-search-reset:hover { background: #f5f5f5; }
 </style>
 </head>
 <body>
@@ -267,6 +364,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 let layerGroup = L.layerGroup().addTo(map);
+let structureLayerGroup = L.layerGroup().addTo(map);
 
 // -------------------------------------------------------------------
 // Copie des coordonnées dans le presse-papier au clic simple sur la carte
@@ -478,6 +576,8 @@ function escapeHtml(str) {
 window.__photoStore = {};
 // Stockage global des fiches de visite complètes
 window.__ficheStore = {};
+// Registre des structures affichées (utilisé par le panneau de recherche Domaine/Famille/Groupe)
+window.__structureRegistry = [];
 
 // Résout une liste de photos (URL ou pièce jointe Grist) et retourne le HTML des emplacements
 async function resolvePhotoSlotsHtml(photos) {
@@ -691,8 +791,147 @@ function createStructureIcon(imageUrl, color) {
   });
 }
 
+// -------------------------------------------------------------------
+// Panneau de recherche / filtre hiérarchique Domaine > Famille > Groupe
+// -------------------------------------------------------------------
+
+function normalizeForSearch(str) {
+  return String(str || '').trim().toLowerCase();
+}
+
+// Affiche uniquement les structures du registre qui satisfont le prédicat ; ajuste la vue
+function applyStructureFilter(predicate) {
+  structureLayerGroup.clearLayers();
+  const matchedLatLngs = [];
+  window.__structureRegistry.forEach(entry => {
+    if (!entry.marker) return;
+    if (predicate(entry)) {
+      entry.marker.addTo(structureLayerGroup);
+      matchedLatLngs.push(entry.marker.getLatLng());
+    }
+  });
+
+  const noResultBox = document.getElementById('structure-no-result');
+  if (noResultBox) noResultBox.style.display = matchedLatLngs.length === 0 ? 'block' : 'none';
+
+  if (matchedLatLngs.length > 0) {
+    map.fitBounds(matchedLatLngs, { padding: [40, 40], maxZoom: 16 });
+  }
+}
+
+function resetStructureFilter() {
+  applyStructureFilter(() => true);
+}
+
+window.__resetStructureSearch = function () {
+  const input = document.getElementById('structure-search-input');
+  if (input) input.value = '';
+  resetStructureFilter();
+};
+
+window.__onStructureSearchInput = function (value) {
+  const q = normalizeForSearch(value);
+  if (!q) { resetStructureFilter(); return; }
+  applyStructureFilter(entry => normalizeForSearch(entry.nom).includes(q));
+};
+
+// Filtre par sélection dans l'arbre (domaine, domaine+famille, ou domaine+famille+groupe)
+window.__filterByClassif = function (jsonStr) {
+  const sel = JSON.parse(jsonStr);
+  applyStructureFilter(entry => {
+    const d = entry.domaine || 'Non renseigné';
+    const f = entry.famille || 'Non renseigné';
+    const g = entry.groupe || 'Non renseigné';
+    if (sel.domaine !== undefined && d !== sel.domaine) return false;
+    if (sel.famille !== undefined && f !== sel.famille) return false;
+    if (sel.groupe !== undefined && g !== sel.groupe) return false;
+    return true;
+  });
+};
+
+// Ouvre/ferme un nœud de l'arbre (domaine ou famille)
+window.__toggleTreeNode = function (arrowEl) {
+  const row = arrowEl.parentElement;
+  const childrenDiv = row.nextElementSibling;
+  if (childrenDiv && childrenDiv.classList.contains('tree-children')) {
+    const opening = !childrenDiv.classList.contains('open');
+    childrenDiv.classList.toggle('open', opening);
+    arrowEl.textContent = opening ? '▾' : '▸';
+  }
+};
+
+// Ouvre/ferme le panneau complet de l'arbre (flèche à côté du champ de recherche)
+window.__toggleTreePanel = function () {
+  const treeDiv = document.getElementById('structure-tree');
+  if (treeDiv) treeDiv.classList.toggle('open');
+};
+
+// (Re)construit le panneau de recherche avec l'arbre Domaine > Famille > Groupe à jour
+function buildSearchPanel() {
+  let panel = document.getElementById('structure-search-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'structure-search-panel';
+    panel.className = 'structure-search-panel';
+    document.body.appendChild(panel);
+  }
+
+  // Construit l'arbre Domaine -> Famille -> Groupe à partir des structures actuellement affichées
+  const tree = new Map();
+  window.__structureRegistry.forEach(entry => {
+    const d = entry.domaine || 'Non renseigné';
+    const f = entry.famille || 'Non renseigné';
+    const g = entry.groupe || 'Non renseigné';
+    if (!tree.has(d)) tree.set(d, new Map());
+    const famMap = tree.get(d);
+    if (!famMap.has(f)) famMap.set(f, new Set());
+    famMap.get(f).add(g);
+  });
+
+  const treeHtml = Array.from(tree.keys()).sort().map(domaine => {
+    const famMap = tree.get(domaine);
+    const familiesHtml = Array.from(famMap.keys()).sort().map(famille => {
+      const groupes = Array.from(famMap.get(famille)).sort();
+      const groupesHtml = groupes.map(groupe =>
+        '<div class="tree-row tree-groupe" onclick="window.__filterByClassif(' + jsStringLiteral(JSON.stringify({ domaine: domaine, famille: famille, groupe: groupe })) + ')">' +
+          '<span class="tree-arrow"></span><span class="tree-label">' + escapeHtml(groupe) + '</span>' +
+        '</div>'
+      ).join('');
+      return (
+        '<div class="tree-famille">' +
+          '<div class="tree-row">' +
+            '<span class="tree-arrow" onclick="event.stopPropagation(); window.__toggleTreeNode(this)">▸</span>' +
+            '<span class="tree-label" onclick="window.__filterByClassif(' + jsStringLiteral(JSON.stringify({ domaine: domaine, famille: famille })) + ')">' + escapeHtml(famille) + '</span>' +
+          '</div>' +
+          '<div class="tree-children">' + groupesHtml + '</div>' +
+        '</div>'
+      );
+    }).join('');
+    return (
+      '<div class="tree-domaine">' +
+        '<div class="tree-row">' +
+          '<span class="tree-arrow" onclick="event.stopPropagation(); window.__toggleTreeNode(this)">▸</span>' +
+          '<span class="tree-label" onclick="window.__filterByClassif(' + jsStringLiteral(JSON.stringify({ domaine: domaine })) + ')">' + escapeHtml(domaine) + '</span>' +
+        '</div>' +
+        '<div class="tree-children">' + familiesHtml + '</div>' +
+      '</div>'
+    );
+  }).join('');
+
+  panel.innerHTML =
+    '<div class="structure-search-row">' +
+      '<input type="text" id="structure-search-input" placeholder="Rechercher une ou des structures" oninput="window.__onStructureSearchInput(this.value)" />' +
+      '<button class="structure-search-toggle" onclick="window.__toggleTreePanel()">▾</button>' +
+    '</div>' +
+    '<div class="structure-tree" id="structure-tree">' + treeHtml + '</div>' +
+    '<div id="structure-no-result" class="structure-no-result">Aucune structure n\'est associée aux paramètres sélectionnés.</div>' +
+    '<div class="structure-search-reset" onclick="window.__resetStructureSearch()">Afficher toutes les structures</div>';
+}
+
 async function drawRecords(records, mappings) {
   layerGroup.clearLayers();
+  structureLayerGroup.clearLayers();
+  window.__structureRegistry = [];
   const bounds = [];
 
   let tokenInfo = null;
@@ -777,7 +1016,7 @@ async function drawRecords(records, mappings) {
       const key = structureGroupKey(mapped);
       if (!key) return; // ni nom, ni coordonnées exploitables sur cette ligne
       if (!structureGroups.has(key)) structureGroups.set(key, []);
-      structureGroups.get(key).push(mapped);
+      structureGroups.get(key).push({ mapped, rowId: record.id });
     } catch (err) {
       console.error('Erreur (regroupement structure) ligne ' + index + ' :', err, record);
     }
@@ -786,8 +1025,8 @@ async function drawRecords(records, mappings) {
   // Table de correspondance : nom de structure normalisé -> clé de groupe (pour relier les visites par nom)
   const nameToGroupKey = new Map();
   structureGroups.forEach((entries, key) => {
-    entries.forEach(m => {
-      const name = (m.NomStructure || '').toString().trim().toLowerCase();
+    entries.forEach(e => {
+      const name = (e.mapped.NomStructure || '').toString().trim().toLowerCase();
       if (name && !nameToGroupKey.has(name)) nameToGroupKey.set(name, key);
     });
   });
@@ -852,17 +1091,18 @@ async function drawRecords(records, mappings) {
     try {
       // Choisit l'entrée "principale" : la première du groupe qui a des coordonnées valides
       let primary = null;
-      for (const m of entries) {
-        const la = parseFrenchNumber(m.Latitude);
-        const lo = parseFrenchNumber(m.Longitude);
+      for (const e of entries) {
+        const la = parseFrenchNumber(e.mapped.Latitude);
+        const lo = parseFrenchNumber(e.mapped.Longitude);
         if (Number.isFinite(la) && Number.isFinite(lo) && !(la === 0 && lo === 0)) {
-          primary = { mapped: m, lat: la, lng: lo };
+          primary = { mapped: e.mapped, rowId: e.rowId, lat: la, lng: lo };
           break;
         }
       }
       if (!primary) return; // aucune coordonnée valide dans tout le groupe
 
       const mapped = primary.mapped;
+      const rowId = primary.rowId;
       const lat = primary.lat;
       const lng = primary.lng;
 
@@ -870,12 +1110,26 @@ async function drawRecords(records, mappings) {
       const nom = mapped.NomStructure || 'Structure';
       const imageSrc = resolveImageValue(mapped.ImageStructure, tokenInfo);
 
+      // Enregistre cette structure dans le registre global (utilisé par le panneau de recherche)
+      window.__structureRegistry.push({
+        marker: null, // renseigné juste après la création du marqueur
+        nom: nom,
+        domaine: mapped.DomaineClassification || '',
+        famille: mapped.FamilleStructure || '',
+        groupe: mapped.GroupeStructure || ''
+      });
+      const registryEntry = window.__structureRegistry[window.__structureRegistry.length - 1];
+
       const marker = L.marker([lat, lng], {
         icon: createStructureIcon(imageSrc, color)
-      }).addTo(layerGroup);
+      }).addTo(structureLayerGroup);
+      registryEntry.marker = marker;
 
       const domaineAuto = findDomaineForPoint(lat, lng, domainePolygonsGlobal);
-      const domaine = domaineAuto || mapped.DomaineStructure || '—';
+      const domaineGeo = domaineAuto || mapped.DomaineStructure || '—';
+      const classifDomaine = mapped.DomaineClassification || '—';
+      const classifFamille = mapped.FamilleStructure || '—';
+      const classifGroupe = mapped.GroupeStructure || '—';
       const etat = mapped.EtatStructure || '—';
       const securite = mapped.SecuriteStructure || '—';
       const lienFiche = mapped.LienFicheStructure || '';
@@ -923,7 +1177,11 @@ async function drawRecords(records, mappings) {
       const cardHtml =
         '<div class="structure-card">' +
           '<h3>' + escapeHtml(nom) + '</h3>' +
-          '<div class="row"><b>Domaine :</b> ' + escapeHtml(domaine) + '</div>' +
+          '<div class="structure-num">Structure n°' + escapeHtml(rowId) + '</div>' +
+          '<div class="row"><b>Domaine géographique :</b> ' + escapeHtml(domaineGeo) + '</div>' +
+          '<div class="row"><b>Domaine :</b> ' + escapeHtml(classifDomaine) + '</div>' +
+          '<div class="row"><b>Famille :</b> ' + escapeHtml(classifFamille) + '</div>' +
+          '<div class="row"><b>Groupe :</b> ' + escapeHtml(classifGroupe) + '</div>' +
           '<div class="row"><b>État :</b> ' + escapeHtml(etat) + '</div>' +
           '<div class="row"><b>Sécurité :</b> ' + escapeHtml(securite) + '</div>' +
           '<div class="buttons">' +
@@ -947,6 +1205,8 @@ async function drawRecords(records, mappings) {
   if (bounds.length > 0) {
     map.fitBounds(bounds, { padding: [20, 20] });
   }
+
+  buildSearchPanel();
 }
 
 // -------------------------------------------------------------------
@@ -976,8 +1236,12 @@ grist.ready({
       description: 'Nom de la structure (titre de l\'encadré au survol)' },
     { name: 'Latitude', title: '🟥 Structure — Latitude', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Longitude', title: '🟥 Structure — Longitude', type: 'Numeric,Int,Text,Any', optional: true },
-    { name: 'DomaineStructure', title: '🟥 Structure — Domaine', type: 'Text', optional: true,
-      description: 'Domaine/parc auquel appartient la structure' },
+    { name: 'DomaineStructure', title: '🟥 Structure — Domaine géographique (manuel, repli)', type: 'Text', optional: true,
+      description: 'Utilisé seulement si aucun polygone de domaine ne contient la structure' },
+    { name: 'DomaineClassification', title: '🟥 Structure — Domaine (classification)', type: 'Text', optional: true,
+      description: 'Utilisé pour le filtre de recherche (arbre Domaine > Famille > Groupe)' },
+    { name: 'FamilleStructure', title: '🟥 Structure — Famille', type: 'Text', optional: true },
+    { name: 'GroupeStructure', title: '🟥 Structure — Groupe', type: 'Text', optional: true },
     { name: 'EtatStructure', title: '🟥 Structure — État', type: 'Text', optional: true,
       description: 'Ex : Bon état, À surveiller, Dégradé...' },
     { name: 'SecuriteStructure', title: '🟥 Structure — Sécurité', type: 'Text', optional: true,
