@@ -736,7 +736,7 @@ function attachHoverCard(layer, contentHtml, extraOptions) {
 
   let closeTimer = null;
   const cancelClose = () => { if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; } };
-  const scheduleClose = () => { closeTimer = setTimeout(() => layer.closePopup(), 250); };
+  const scheduleClose = () => { closeTimer = setTimeout(() => layer.closePopup(), 600); };
 
   // Événements Leaflet (fonctionnent dans la plupart des cas)
   layer.on('mouseover', () => { cancelClose(); layer.openPopup(); });
@@ -757,6 +757,10 @@ function attachHoverCard(layer, contentHtml, extraOptions) {
     if (el) {
       el.addEventListener('mouseenter', cancelClose);
       el.addEventListener('mouseleave', scheduleClose);
+      // Filets de sécurité : tout mouvement ou clic dans l'encadré annule la fermeture programmée
+      el.addEventListener('mousemove', cancelClose);
+      el.addEventListener('mousedown', cancelClose);
+      el.addEventListener('click', cancelClose);
     }
   });
 }
