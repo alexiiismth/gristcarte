@@ -1046,16 +1046,30 @@ async function drawRecords(records, mappings) {
   // pour détecter automatiquement dans quel domaine se trouve chaque structure
   const domainePolygonsGlobal = [];
 
-  // Recense TOUTES les combinaisons Famille/Groupe de la liste de référence (colonnes dédiées,
+  // Recense TOUTES les combinaisons Domaine/Famille/Groupe de la liste de référence (colonnes dédiées,
   // séparées des colonnes Famille/Groupe des structures). Reliées entre elles par ligne (champ rapporté),
-  // ce qui est légitime ici puisque c'est justement la "base" Famille/Groupe.
+  // ce qui est légitime ici puisque c'est justement la "base" Famille/Groupe/Domaine.
+  // Une famille peut appartenir à jusqu'à 5 domaines (5 colonnes) : elle apparaîtra sous chacun d'eux.
   window.__allClassifPairs = [];
   records.forEach(record => {
     try {
       const mapped = grist.mapColumnNames(record) || record;
       const f = formatTextValue(mapped.FamilleRefListe).trim();
       const g = formatTextValue(mapped.GroupeRefListe).trim();
-      if (f || g) window.__allClassifPairs.push({ domaine: '', famille: f, groupe: g });
+      const domaines = [
+        formatTextValue(mapped.DomaineRefListe1).trim(),
+        formatTextValue(mapped.DomaineRefListe2).trim(),
+        formatTextValue(mapped.DomaineRefListe3).trim(),
+        formatTextValue(mapped.DomaineRefListe4).trim(),
+        formatTextValue(mapped.DomaineRefListe5).trim()
+      ].filter(d => d !== '');
+
+      if (domaines.length > 0) {
+        domaines.forEach(d => window.__allClassifPairs.push({ domaine: d, famille: f, groupe: g }));
+      } else if (f || g) {
+        // Aucun domaine renseigné : la famille apparaîtra directement à la racine de l'arbre
+        window.__allClassifPairs.push({ domaine: '', famille: f, groupe: g });
+      }
     } catch (err) {
       // ignore silencieusement une ligne mal formée pour cette collecte annexe
     }
@@ -1370,6 +1384,8 @@ grist.ready({
       description: 'Colonne listant TOUTES les familles possibles (même sans structure assignée), pour l\'arbre de recherche' },
     { name: 'GroupeRefListe', title: '🟦 Référence — Tous les Groupes (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
       description: 'Colonne listant TOUS les groupes possibles, reliée à sa Famille sur la même ligne' },
+    { name: 'DomaineRefListe', title: '🟦 Référence — Domaine (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
+      description: 'Domaine auquel appartient cette Famille sur cette ligne. Si une famille appartient à plusieurs domaines, mets une ligne par domaine : elle apparaîtra sous chacun.' },
     { name: 'EtatStructure', title: '🟥 Structure — État', type: 'Text', optional: true,
       description: 'Ex : Bon état, À surveiller, Dégradé...' },
     { name: 'SecuriteStructure', title: '🟥 Structure — Sécurité', type: 'Text', optional: true,
