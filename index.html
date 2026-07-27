@@ -10,6 +10,23 @@
   html, body { height: 100%; margin: 0; }
   #map { width: 100%; height: 100vh; }
 
+  /* Aligne les contrôles du coin haut-gauche (zoom + crédit) horizontalement plutôt qu'empilés */
+  .leaflet-top.leaflet-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .map-credit-badge {
+    background: rgba(255,255,255,0.92);
+    padding: 5px 10px;
+    border-radius: 4px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    font-size: 12px;
+    color: #333;
+    white-space: nowrap;
+  }
+
   .structure-popup .leaflet-popup-content-wrapper {
     border-radius: 10px;
     padding: 0;
@@ -369,6 +386,16 @@ const map = L.map('map').setView([46.6, 2.4], 6); // vue par défaut : France
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
+
+// Encart de crédit, affiché à côté des boutons de zoom (haut à gauche)
+const creditControl = L.control({ position: 'topleft' });
+creditControl.onAdd = function () {
+  const div = L.DomUtil.create('div', 'map-credit-badge');
+  div.textContent = 'Carte interactive développée par l\'agence d\'Angers du Cerema';
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+};
+creditControl.addTo(map);
 
 let layerGroup = L.layerGroup().addTo(map);
 let structureLayerGroup = L.layerGroup().addTo(map);
@@ -743,7 +770,7 @@ function attachHoverCard(layer, contentHtml, extraOptions) {
 
   let closeTimer = null;
   const cancelClose = () => { if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; } };
-  const scheduleClose = () => { closeTimer = setTimeout(() => layer.closePopup(), 600); };
+  const scheduleClose = () => { closeTimer = setTimeout(() => layer.closePopup(), 5000); };
 
   // Événements Leaflet (fonctionnent dans la plupart des cas)
   layer.on('mouseover', () => { cancelClose(); layer.openPopup(); });
