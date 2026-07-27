@@ -233,6 +233,35 @@
     display: flex;
     flex-direction: column;
   }
+  .info-guide-btn {
+    position: fixed;
+    top: 12px;
+    right: 300px;
+    z-index: 1000;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: none;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .info-guide-btn:hover {
+    background: #f2f2f2;
+  }
+  .guide-modal {
+    max-width: 700px;
+    text-align: left;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+  .guide-modal h2 { font-size: 20px; }
+  .guide-modal h3 { font-size: 15px; margin: 18px 0 6px 0; color: #1565c0; }
+  .guide-modal p, .guide-modal li { font-size: 13px; color: #333; line-height: 1.5; }
+  .guide-modal ul { padding-left: 20px; margin: 6px 0; }
   .structure-search-row {
     display: flex;
     align-items: center;
@@ -396,6 +425,76 @@ creditControl.onAdd = function () {
   return div;
 };
 creditControl.addTo(map);
+
+// Bouton "info" en haut à droite (à gauche du panneau de recherche), ouvrant le guide d'utilisation
+const infoGuideBtn = document.createElement('button');
+infoGuideBtn.id = 'info-guide-btn';
+infoGuideBtn.className = 'info-guide-btn';
+infoGuideBtn.title = 'Guide d\'utilisation';
+infoGuideBtn.textContent = 'ℹ️';
+infoGuideBtn.onclick = () => window.showGuideModal();
+document.body.appendChild(infoGuideBtn);
+
+window.showGuideModal = function () {
+  window.closePhotoModal();
+
+  const guideHtml =
+    '<h2 style="margin-top:0;">Guide d\'utilisation — Carte interactive</h2>' +
+    '<p style="font-style:italic;color:#666;">Carte interactive développée par l\'agence d\'Angers du Cerema</p>' +
+
+    '<h3>Présentation générale</h3>' +
+    '<p>Cette carte permet de visualiser deux types d\'éléments : les <b>domaines/parcs</b> (polygones colorés délimitant leur emprise géographique) et les <b>structures</b> (ouvrages), représentées par des pins rouges par défaut, ou par une photo personnalisée si elle a été renseignée.</p>' +
+
+    '<h3>Consulter les informations d\'un domaine</h3>' +
+    '<p>Survoler un polygone de domaine affiche un encadré avec son nom, son estimation de superficie (ha), sa ou ses protection(s), et un bouton 📷 Photo pour voir une photo illustrative avec sa description.</p>' +
+
+    '<h3>Consulter les informations d\'une structure</h3>' +
+    '<p>Survoler un pin affiche un encadré avec : le nom et le numéro de la structure (ligne Grist), son domaine géographique (détecté automatiquement si elle est dans un polygone, sinon valeur manuelle), sa classification Domaine/Famille/Groupe, son état structurel et son état de sécurité usager.</p>' +
+    '<p>L\'encadré reste ouvert tant que la souris est dessus, et se referme 1 seconde après que la souris le quitte réellement.</p>' +
+
+    '<h3>Les boutons de l\'encadré structure</h3>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+      '<tr style="background:#f5f5f5;"><th style="text-align:left;padding:6px;border:1px solid #ddd;">Bouton</th><th style="text-align:left;padding:6px;border:1px solid #ddd;">Fonction</th></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">📄 Voir la/les fiche(s) visite(s)</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la ou les fiches de visite (onglets si plusieurs, triées de la plus récente à la plus ancienne). Message si aucune visite.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">➕ Créer une fiche visite</td><td style="padding:6px;border:1px solid #ddd;">Redirige vers le formulaire externe de saisie d\'une nouvelle visite.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">🧭 Naviguer</td><td style="padding:6px;border:1px solid #ddd;">Ouvre Google Maps centré sur la structure.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">📷 Photo(s) initial de la structure</td><td style="padding:6px;border:1px solid #ddd;">Affiche jusqu\'à 4 photos de référence avec description.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à toutes les structures.</td></tr>' +
+    '</table>' +
+    '<p>Chaque fiche de visite présente : inspecteur(s), date, nom complet de la structure, description (tiret si vide), état structurel, état sécurité usager, et jusqu\'à 5 photos avec description.</p>' +
+
+    '<h3>Copier des coordonnées GPS</h3>' +
+    '<p>Un simple clic n\'importe où sur la carte (pin, domaine, ou zone vide) copie les coordonnées GPS de l\'endroit cliqué dans le presse-papier, avec confirmation visuelle en bas de l\'écran.</p>' +
+
+    '<h3>Rechercher une structure</h3>' +
+    '<p>Le panneau « Rechercher une ou des structures » (en haut à droite) propose :</p>' +
+    '<ul>' +
+      '<li><b>Recherche par nom</b> : tapez un nom, la carte se recentre automatiquement.</li>' +
+      '<li><b>Navigation par catégorie</b> : cliquez sur la flèche (▾) pour dérouler l\'arborescence <b>Domaine → Famille → Groupe → Structure</b>. Une famille peut apparaître sous plusieurs domaines. Cliquer sur une structure (📍) recentre la carte dessus et ouvre son encadré.</li>' +
+    '</ul>' +
+    '<p>Si aucune structure n\'est associée à la sélection, le message <i>« Aucune structure n\'est associée aux paramètres sélectionnés »</i> apparaît.</p>' +
+
+    '<h3>Points importants</h3>' +
+    '<ul>' +
+      '<li>Les polygones de domaine restent toujours visibles ; seule la recherche filtre les structures.</li>' +
+      '<li>Une structure avec plusieurs visites n\'apparaît qu\'une seule fois sur la carte et dans la recherche.</li>' +
+      '<li>Les photos peuvent être ajoutées via un lien internet ou en pièce jointe Grist.</li>' +
+    '</ul>' +
+
+    '<h3>En cas de problème</h3>' +
+    '<p>Vérifiez en priorité le mapping des colonnes dans les paramètres du widget Grist, ainsi que le contenu des cellules concernées.</p>';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal guide-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      guideHtml +
+    '</div>';
+  document.body.appendChild(overlay);
+};
 
 let layerGroup = L.layerGroup().addTo(map);
 let structureLayerGroup = L.layerGroup().addTo(map);
@@ -1384,8 +1483,12 @@ grist.ready({
       description: 'Colonne listant TOUTES les familles possibles (même sans structure assignée), pour l\'arbre de recherche' },
     { name: 'GroupeRefListe', title: '🟦 Référence — Tous les Groupes (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
       description: 'Colonne listant TOUS les groupes possibles, reliée à sa Famille sur la même ligne' },
-    { name: 'DomaineRefListe', title: '🟦 Référence — Domaine (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
-      description: 'Domaine auquel appartient cette Famille sur cette ligne. Si une famille appartient à plusieurs domaines, mets une ligne par domaine : elle apparaîtra sous chacun.' },
+    { name: 'DomaineRefListe1', title: '🟦 Référence — Domaine 1 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
+      description: 'Un des domaines auquel appartient cette Famille sur cette ligne (jusqu\'à 5 colonnes domaine)' },
+    { name: 'DomaineRefListe2', title: '🟦 Référence — Domaine 2 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'DomaineRefListe3', title: '🟦 Référence — Domaine 3 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'DomaineRefListe4', title: '🟦 Référence — Domaine 4 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'DomaineRefListe5', title: '🟦 Référence — Domaine 5 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
     { name: 'EtatStructure', title: '🟥 Structure — État', type: 'Text', optional: true,
       description: 'Ex : Bon état, À surveiller, Dégradé...' },
     { name: 'SecuriteStructure', title: '🟥 Structure — Sécurité', type: 'Text', optional: true,
