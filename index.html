@@ -989,8 +989,8 @@ async function drawRecords(records, mappings) {
     try {
       const mapped = grist.mapColumnNames(record) || record;
       const d = (mapped.DomaineClassification || '').toString().trim();
-      const f = (mapped.FamilleStructure || '').toString().trim();
-      const g = (mapped.GroupeStructure || '').toString().trim();
+      const f = formatTextValue(mapped.FamilleStructure).trim();
+      const g = formatTextValue(mapped.GroupeStructure).trim();
       if (d || f || g) window.__allClassifPairs.push({ domaine: d, famille: f, groupe: g });
     } catch (err) {
       // ignore silencieusement une ligne mal formée pour cette collecte annexe
@@ -1157,8 +1157,8 @@ async function drawRecords(records, mappings) {
         marker: null, // renseigné juste après la création du marqueur
         nom: nom,
         domaine: mapped.DomaineClassification || '',
-        famille: mapped.FamilleStructure || '',
-        groupe: mapped.GroupeStructure || ''
+        famille: formatTextValue(mapped.FamilleStructure),
+        groupe: formatTextValue(mapped.GroupeStructure)
       });
       const registryEntry = window.__structureRegistry[window.__structureRegistry.length - 1];
 
@@ -1170,8 +1170,8 @@ async function drawRecords(records, mappings) {
       const domaineAuto = findDomaineForPoint(lat, lng, domainePolygonsGlobal);
       const domaineGeo = domaineAuto || mapped.DomaineStructure || '—';
       const classifDomaine = mapped.DomaineClassification || '—';
-      const classifFamille = mapped.FamilleStructure || '—';
-      const classifGroupe = mapped.GroupeStructure || '—';
+      const classifFamille = formatTextValue(mapped.FamilleStructure) || '—';
+      const classifGroupe = formatTextValue(mapped.GroupeStructure) || '—';
       const etat = mapped.EtatStructure || '—';
       const securite = mapped.SecuriteStructure || '—';
       const lienFiche = mapped.LienFicheStructure || '';
@@ -1282,8 +1282,10 @@ grist.ready({
       description: 'Utilisé seulement si aucun polygone de domaine ne contient la structure' },
     { name: 'DomaineClassification', title: '🟥 Structure — Domaine (classification)', type: 'Text', optional: true,
       description: 'Utilisé pour le filtre de recherche (arbre Domaine > Famille > Groupe)' },
-    { name: 'FamilleStructure', title: '🟥 Structure — Famille', type: 'Text', optional: true },
-    { name: 'GroupeStructure', title: '🟥 Structure — Groupe', type: 'Text', optional: true },
+    { name: 'FamilleStructure', title: '🟥 Structure — Famille (colonne de LA FAMILLE de cette structure)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
+      description: 'Sélectionne précisément la colonne qui contient la famille de la structure (texte, choix, ou champ rapporté)' },
+    { name: 'GroupeStructure', title: '🟥 Structure — Groupe (colonne du GROUPE de cette structure)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
+      description: 'Sélectionne précisément la colonne qui contient le groupe de la structure (texte, choix, ou champ rapporté)' },
     { name: 'EtatStructure', title: '🟥 Structure — État', type: 'Text', optional: true,
       description: 'Ex : Bon état, À surveiller, Dégradé...' },
     { name: 'SecuriteStructure', title: '🟥 Structure — Sécurité', type: 'Text', optional: true,
