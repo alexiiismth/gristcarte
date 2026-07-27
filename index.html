@@ -923,8 +923,19 @@ function buildSearchPanel() {
   }
 
   function renderGroupe(groupe, idxList) {
-    const structuresHtml = idxList.length > 0
-      ? idxList.map(renderStructureLeaf).join('')
+    // Déduplique par nom normalisé : une même structure ne doit apparaître qu'une fois,
+    // peu importe le nombre de visites (lignes) qui lui sont associées.
+    const seenNames = new Set();
+    const dedupedIdxList = idxList.filter(idx => {
+      const entry = window.__structureRegistry[idx];
+      const key = normalizeForSearch(entry ? entry.nom : '');
+      if (seenNames.has(key)) return false;
+      seenNames.add(key);
+      return true;
+    });
+
+    const structuresHtml = dedupedIdxList.length > 0
+      ? dedupedIdxList.map(renderStructureLeaf).join('')
       : '<div class="tree-empty-msg">Aucune structure n\'est associée aux paramètres sélectionnés.</div>';
     return (
       '<div class="tree-groupe">' +
@@ -1008,19 +1019,34 @@ async function drawRecords(records, mappings) {
   // pour détecter automatiquement dans quel domaine se trouve chaque structure
   const domainePolygonsGlobal = [];
 
-  // Recense TOUTES les combinaisons Domaine/Famille/Groupe présentes n'importe où dans le tableau,
-  // même sur des lignes qui ne définissent aucune structure (ex : une "base" Famille/Groupe à part).
-  // Cela permet à l'arbre de recherche de proposer des Familles/Groupes même sans structure assignée.
+  // Recense TOUTES les combinaisons Famille/Groupe de la liste de référence (colonnes dédiées,
+  // séparées des colonnes Famille/Groupe des structures). Reliées entre elles par ligne (champ rapporté),
+  // ce qui est légitime ici puisque c'est justement la "base" Famille/Groupe.
   window.__allClassifPairs = [];
   records.forEach(record => {
     try {
       const mapped = grist.mapColumnNames(record) || record;
-      const d = (mapped.DomaineClassification || '').toString().trim();
-      const f = formatTextValue(mapped.FamilleStructure).trim();
-      const g = formatTextValue(mapped.GroupeStructure).trim();
-      if (d || f || g) window.__allClassifPairs.push({ domaine: d, famille: f, groupe: g });
+      const f = formatTextValue(mapped.FamilleRefListe).trim();
+      const g = formatTextValue(mapped.GroupeRefListe).trim();
+      if (f || g) window.__allClassifPairs.push({ domaine: '', famille: f, groupe: g });
     } catch (err) {
       // ignore silencieusement une ligne mal formée pour cette collecte annexe
+    }
+  });
+
+  // Recense la liste EXHAUSTIVE des Familles et des Groupes depuis les colonnes de référence dédiées
+  // (indépendantes des structures), pour que le menu déroulant propose absolument tout.
+  window.__allFamilleNames = new Set();
+  window.__allGroupeNames = new Set();
+  records.forEach(record => {
+    try {
+      const mapped = grist.mapColumnNames(record) || record;
+      const f = formatTextValue(mapped.ListeToutesFamilles).trim();
+      const g = formatTextValue(mapped.ListeTousGroupes).trim();
+      if (f) window.__allFamilleNames.add(f);
+      if (g) window.__allGroupeNames.add(g);
+    } catch (err) {
+      // ignore silencieusement
     }
   });
 
@@ -1313,6 +1339,10 @@ grist.ready({
       description: 'Sélectionne précisément la colonne qui contient la famille de la structure (texte, choix, ou champ rapporté)' },
     { name: 'GroupeStructure', title: '🟥 Structure — Groupe (colonne du GROUPE de cette structure)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
       description: 'Sélectionne précisément la colonne qui contient le groupe de la structure (texte, choix, ou champ rapporté)' },
+    { name: 'FamilleRefListe', title: '🟦 Référence — Toutes les Familles', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
+      description: 'Colonne listant TOUTES les familles possibles (même sans structure assignée), pour l\'arbre de recherche' },
+    { name: 'GroupeRefListe', title: '🟦 Référence — Tous les Groupes (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
+      description: 'Colonne listant TOUS les groupes possibles, reliée à sa Famille sur la même ligne' },
     { name: 'EtatStructure', title: '🟥 Structure — État', type: 'Text', optional: true,
       description: 'Ex : Bon état, À surveiller, Dégradé...' },
     { name: 'SecuriteStructure', title: '🟥 Structure — Sécurité', type: 'Text', optional: true,
