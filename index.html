@@ -876,37 +876,57 @@ function buildSearchPanel() {
     document.body.appendChild(panel);
   }
 
-  // Construit l'arbre Domaine -> Famille -> Groupe à partir des structures actuellement affichées
-  const tree = new Map();
-  window.__structureRegistry.forEach(entry => {
-    const d = entry.domaine || 'Non renseigné';
-    const f = entry.famille || 'Non renseigné';
-    const g = entry.groupe || 'Non renseigné';
-    if (!tree.has(d)) tree.set(d, new Map());
-    const famMap = tree.get(d);
-    if (!famMap.has(f)) famMap.set(f, new Set());
-    famMap.get(f).add(g);
+  // Fusionne deux sources : les structures réellement affichées ET toute autre combinaison
+  // Domaine/Famille/Groupe présente ailleurs dans le tableau (ex : une "base" Famille/Groupe à part).
+  const allEntries = window.__structureRegistry
+    .map(e => ({ domaine: e.domaine, famille: e.famille, groupe: e.groupe }))
+    .concat(window.__allClassifPairs || []);
+
+  // domaineTree : Map(domaine non-vide -> Map(famille -> Set(groupe)))
+  // rootFamilies : Map(famille -> Set(groupe)) pour les familles SANS domaine renseigné
+  //                (affichées directement à la racine de l'arbre, sans niveau Domaine)
+  const domaineTree = new Map();
+  const rootFamilies = new Map();
+
+  allEntries.forEach(entry => {
+    const d = (entry.domaine || '').trim();
+    const f = entry.famille && entry.famille.trim() ? entry.famille.trim() : 'Non renseigné';
+    const g = entry.groupe && entry.groupe.trim() ? entry.groupe.trim() : 'Non renseigné';
+
+    if (d) {
+      if (!domaineTree.has(d)) domaineTree.set(d, new Map());
+      const famMap = domaineTree.get(d);
+      if (!famMap.has(f)) famMap.set(f, new Set());
+      famMap.get(f).add(g);
+    } else {
+      if (!rootFamilies.has(f)) rootFamilies.set(f, new Set());
+      rootFamilies.get(f).add(g);
+    }
   });
 
-  const treeHtml = Array.from(tree.keys()).sort().map(domaine => {
-    const famMap = tree.get(domaine);
-    const familiesHtml = Array.from(famMap.keys()).sort().map(famille => {
-      const groupes = Array.from(famMap.get(famille)).sort();
-      const groupesHtml = groupes.map(groupe =>
-        '<div class="tree-row tree-groupe" onclick="window.__filterByClassif(' + jsStringLiteral(JSON.stringify({ domaine: domaine, famille: famille, groupe: groupe })) + ')">' +
-          '<span class="tree-arrow"></span><span class="tree-label">' + escapeHtml(groupe) + '</span>' +
-        '</div>'
-      ).join('');
-      return (
-        '<div class="tree-famille">' +
-          '<div class="tree-row">' +
-            '<span class="tree-arrow" onclick="event.stopPropagation(); window.__toggleTreeNode(this)">▸</span>' +
-            '<span class="tree-label" onclick="window.__filterByClassif(' + jsStringLiteral(JSON.stringify({ domaine: domaine, famille: famille })) + ')">' + escapeHtml(famille) + '</span>' +
-          '</div>' +
-          '<div class="tree-children">' + groupesHtml + '</div>' +
-        '</div>'
-      );
+  function renderFamille(domaine, famille, groupes) {
+    const groupesHtml = Array.from(groupes).sort().map(groupe => {
+      const sel = domaine ? { domaine: domaine, famille: famille, groupe: groupe } : { famille: famille, groupe: groupe };
+      return '<div class="tree-row tree-groupe" onclick="window.__filterByClassif(' + jsStringLiteral(JSON.stringify(sel)) + ')">' +
+        '<span class="tree-arrow"></span><span class="tree-label">' + escapeHtml(groupe) + '</span>' +
+      '</div>';
     }).join('');
+    const selFamille = domaine ? { domaine: domaine, famille: famille } : { famille: famille };
+    return (
+      '<div class="tree-famille">' +
+        '<div class="tree-row">' +
+          '<span class="tree-arrow" onclick="event.stopPropagation(); window.__toggleTreeNode(this)">▸</span>' +
+          '<span class="tree-label" onclick="window.__filterByClassif(' + jsStringLiteral(JSON.stringify(selFamille)) + ')">' + escapeHtml(famille) + '</span>' +
+        '</div>' +
+        '<div class="tree-children">' + groupesHtml + '</div>' +
+      '</div>'
+    );
+  }
+
+  const domainesHtml = Array.from(domaineTree.keys()).sort().map(domaine => {
+    const famMap = domaineTree.get(domaine);
+    const familiesHtml = Array.from(famMap.keys()).sort()
+      .map(famille => renderFamille(domaine, famille, famMap.get(famille))).join('');
     return (
       '<div class="tree-domaine">' +
         '<div class="tree-row">' +
@@ -917,6 +937,12 @@ function buildSearchPanel() {
       '</div>'
     );
   }).join('');
+
+  // Les familles sans domaine renseigné apparaissent directement à la racine (pas de niveau Domaine)
+  const rootFamiliesHtml = Array.from(rootFamilies.keys()).sort()
+    .map(famille => renderFamille(null, famille, rootFamilies.get(famille))).join('');
+
+  const treeHtml = domainesHtml + rootFamiliesHtml;
 
   panel.innerHTML =
     '<div class="structure-search-row">' +
@@ -954,6 +980,22 @@ async function drawRecords(records, mappings) {
   // Liste des polygones de domaine (remplie pendant leur traitement ci-dessous), utilisée ensuite
   // pour détecter automatiquement dans quel domaine se trouve chaque structure
   const domainePolygonsGlobal = [];
+
+  // Recense TOUTES les combinaisons Domaine/Famille/Groupe présentes n'importe où dans le tableau,
+  // même sur des lignes qui ne définissent aucune structure (ex : une "base" Famille/Groupe à part).
+  // Cela permet à l'arbre de recherche de proposer des Familles/Groupes même sans structure assignée.
+  window.__allClassifPairs = [];
+  records.forEach(record => {
+    try {
+      const mapped = grist.mapColumnNames(record) || record;
+      const d = (mapped.DomaineClassification || '').toString().trim();
+      const f = (mapped.FamilleStructure || '').toString().trim();
+      const g = (mapped.GroupeStructure || '').toString().trim();
+      if (d || f || g) window.__allClassifPairs.push({ domaine: d, famille: f, groupe: g });
+    } catch (err) {
+      // ignore silencieusement une ligne mal formée pour cette collecte annexe
+    }
+  });
 
   records.forEach((record, index) => {
     try {
