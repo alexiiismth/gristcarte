@@ -233,6 +233,24 @@
     display: flex;
     flex-direction: column;
   }
+  .map-info-button {
+    position: fixed;
+    top: 12px;
+    right: 300px;
+    z-index: 1000;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .map-info-button:hover { background: #f2f2f2; }
   .info-guide-btn {
     position: fixed;
     top: 12px;
@@ -426,14 +444,18 @@ creditControl.onAdd = function () {
 };
 creditControl.addTo(map);
 
-// Bouton "info" en haut à droite (à gauche du panneau de recherche), ouvrant le guide d'utilisation
-const infoGuideBtn = document.createElement('button');
-infoGuideBtn.id = 'info-guide-btn';
-infoGuideBtn.className = 'info-guide-btn';
-infoGuideBtn.title = 'Guide d\'utilisation';
-infoGuideBtn.textContent = 'ℹ️';
-infoGuideBtn.onclick = () => window.showGuideModal();
-document.body.appendChild(infoGuideBtn);
+// Bouton "info" (guide d'utilisation), affiché à gauche du panneau de recherche, en haut à droite
+function ensureInfoButton() {
+  if (document.getElementById('map-info-button')) return;
+  const btn = document.createElement('button');
+  btn.id = 'map-info-button';
+  btn.className = 'map-info-button';
+  btn.title = 'Guide d\'utilisation de la carte';
+  btn.textContent = 'ℹ️';
+  btn.onclick = function () { window.showGuideModal(); };
+  document.body.appendChild(btn);
+}
+ensureInfoButton();
 
 window.showGuideModal = function () {
   window.closePhotoModal();
