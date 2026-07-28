@@ -1058,7 +1058,7 @@ window.__toggleTreePanel = function () {
   if (treeDiv) treeDiv.classList.toggle('open');
 };
 
-// (Re)construit le panneau de recherche : arborescence stricte Domaine > Famille > Groupe > Structure(s)
+// (Re)construit le panneau de recherche : arbre en cascade Domaine > Famille > Groupe > Structure(s)
 function buildSearchPanel() {
   let panel = document.getElementById('structure-search-panel');
   if (!panel) {
@@ -1069,17 +1069,25 @@ function buildSearchPanel() {
   }
 
   // domaineTree : Map(domaine -> Map(famille -> Map(groupe -> [indices dans __structureRegistry])))
+  // rootFamilies : idem mais pour les familles SANS domaine renseigné (affichées à la racine)
   const domaineTree = new Map();
+  const rootFamilies = new Map();
 
   // Ajoute une combinaison domaine/famille/groupe (avec ou sans structure associée) dans l'arbre
   function addToTree(domaine, famille, groupe, structureIdx) {
-    const d = domaine && domaine.trim() ? domaine.trim() : 'Domaine non spécifié';
-    const f = famille && famille.trim() ? famille.trim() : 'Famille non spécifiée';
-    const g = groupe && groupe.trim() ? groupe.trim() : 'Groupe non spécifié';
+    const f = famille && famille.trim() ? famille.trim() : 'Non renseigné';
+    const g = groupe && groupe.trim() ? groupe.trim() : 'Non renseigné';
+    const d = domaine && domaine.trim() ? domaine.trim() : '';
 
-    if (!domaineTree.has(d)) domaineTree.set(d, new Map());
-    if (!domaineTree.get(d).has(f)) domaineTree.get(d).set(f, new Map());
-    const groupeMap = domaineTree.get(d).get(f);
+    let groupeMap;
+    if (d) {
+      if (!domaineTree.has(d)) domaineTree.set(d, new Map());
+      if (!domaineTree.get(d).has(f)) domaineTree.get(d).set(f, new Map());
+      groupeMap = domaineTree.get(d).get(f);
+    } else {
+      if (!rootFamilies.has(f)) rootFamilies.set(f, new Map());
+      groupeMap = rootFamilies.get(f);
+    }
 
     if (!groupeMap.has(g)) groupeMap.set(g, []);
     if (structureIdx !== null && structureIdx !== undefined) groupeMap.get(g).push(structureIdx);
@@ -1154,12 +1162,18 @@ function buildSearchPanel() {
     );
   }).join('');
 
+  // Les familles sans domaine renseigné apparaissent directement à la racine (pas de niveau Domaine)
+  const rootFamiliesHtml = Array.from(rootFamilies.keys()).sort()
+    .map(f => renderFamille(f, rootFamilies.get(f))).join('');
+
+  const treeHtml = domainesHtml + rootFamiliesHtml;
+
   panel.innerHTML =
     '<div class="structure-search-row">' +
       '<input type="text" id="structure-search-input" placeholder="Rechercher une ou des structures" oninput="window.__onStructureSearchInput(this.value)" />' +
       '<button class="structure-search-toggle" onclick="window.__toggleTreePanel()">▾</button>' +
     '</div>' +
-    '<div class="structure-tree" id="structure-tree">' + domainesHtml + '</div>' +
+    '<div class="structure-tree" id="structure-tree">' + treeHtml + '</div>' +
     '<div id="structure-no-result" class="structure-no-result">Aucune structure n\'est associée aux paramètres sélectionnés.</div>' +
     '<div class="structure-search-reset" onclick="window.__resetStructureSearch()">Afficher toutes les structures</div>';
 }
