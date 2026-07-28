@@ -10,7 +10,7 @@
   html, body { height: 100%; margin: 0; }
   #map { width: 100%; height: 100vh; }
 
-  /* Aligne les contrôles du coin haut-gauche (zoom + crédit) horizontalement plutôt qu'empilés */
+  /* Aligne les contrôles du coin haut-gauche (zoom + crédit) horizontalement */
   .leaflet-top.leaflet-left {
     display: flex;
     align-items: center;
@@ -191,21 +191,6 @@
     color: #333;
     line-height: 1.5;
   }
-  .guide-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-    margin: 8px 0;
-  }
-  .guide-table td {
-    padding: 6px;
-    border: 1px solid #ddd;
-    vertical-align: top;
-  }
-  .guide-table td:first-child {
-    white-space: nowrap;
-    font-weight: 600;
-  }
   .fiche-tabs {
     display: flex;
     gap: 6px;
@@ -265,7 +250,7 @@
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 2px 12px rgba(0,0,0,0.25);
-    width: 280px;
+    width: 290px;
     max-height: 80vh;
     overflow: hidden;
     display: flex;
@@ -274,7 +259,7 @@
   .map-info-button {
     position: fixed;
     top: 12px;
-    right: 300px;
+    right: 310px;
     z-index: 1000;
     width: 36px;
     height: 36px;
@@ -289,35 +274,7 @@
     justify-content: center;
   }
   .map-info-button:hover { background: #f2f2f2; }
-  .info-guide-btn {
-    position: fixed;
-    top: 12px;
-    right: 300px;
-    z-index: 1000;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    border: none;
-    background: #fff;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
-    font-size: 18px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .info-guide-btn:hover {
-    background: #f2f2f2;
-  }
-  .guide-modal {
-    max-width: 700px;
-    text-align: left;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  }
-  .guide-modal h2 { font-size: 20px; }
-  .guide-modal h3 { font-size: 15px; margin: 18px 0 6px 0; color: #1565c0; }
-  .guide-modal p, .guide-modal li { font-size: 13px; color: #333; line-height: 1.5; }
-  .guide-modal ul { padding-left: 20px; margin: 6px 0; }
+
   .structure-search-row {
     display: flex;
     align-items: center;
@@ -356,31 +313,39 @@
   .tree-row {
     display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 5px 2px;
+    gap: 6px;
+    padding: 5px 4px;
     cursor: pointer;
     border-radius: 4px;
     font-size: 13px;
+    user-select: none;
   }
   .tree-row:hover { background: #f2f2f2; }
+
+  /* Hiérarchie visuelle */
+  .tree-domaine > .tree-row { font-weight: 700; color: #0d47a1; }
+  .tree-famille > .tree-row { font-weight: 600; color: #1b5e20; }
+  .tree-groupe > .tree-row { font-weight: 500; color: #e65100; }
+  .tree-structure .tree-label { color: #1565c0; font-weight: normal; }
+
   .tree-arrow {
     width: 14px;
     display: inline-block;
     text-align: center;
-    color: #666;
+    color: #555;
     flex-shrink: 0;
+    font-weight: bold;
   }
   .tree-label { flex: 1; }
   .tree-children {
-    margin-left: 16px;
+    margin-left: 14px;
     display: none;
   }
   .tree-children.open { display: block; }
-  .tree-structure .tree-label { color: #1565c0; }
   .tree-empty-msg {
     font-size: 12px;
-    color: #a33;
-    padding: 5px 2px;
+    color: #888;
+    padding: 4px 6px;
     font-style: italic;
   }
   .structure-no-result {
@@ -408,7 +373,7 @@
 
 <script>
 // -------------------------------------------------------------------
-// 1) Parsing WKT : gère POLYGON(...) et MULTIPOLYGON(...), avec trous
+// 1) Parsing WKT : POLYGON et MULTIPOLYGON
 // -------------------------------------------------------------------
 
 function splitTopLevelParens(str) {
@@ -497,33 +462,19 @@ window.showGuideModal = function () {
     '<p style="font-style:italic;color:#666;">Carte interactive développée par l\'agence d\'Angers du Cerema</p>' +
 
     '<h3>Présentation générale</h3>' +
-    '<p>Cette carte permet de visualiser deux types d\'éléments : les <b>domaines/parcs</b> (polygones colorés délimitant leur emprise géographique) et les <b>structures</b> (ouvrages), représentées par des pins rouges par défaut, ou par une photo personnalisée si elle a été renseignée.</p>' +
+    '<p>Cette carte permet de visualiser deux types d\'éléments : les <b>domaines/parcs</b> (polygones colorés) et les <b>structures</b> (ouvrages), représentées par des pins ou leurs photos.</p>' +
 
     '<h3>Consulter les informations d\'un domaine</h3>' +
-    '<p>Survoler un polygone de domaine affiche un encadré avec son nom, son estimation de superficie (ha), sa ou ses protection(s), et un bouton 📷 Photo pour voir une photo illustrative avec sa description.</p>' +
+    '<p>Survoler un polygone affiche son nom, sa superficie (ha), sa/ses protection(s), et un bouton 📷 Photo pour voir une illustration.</p>' +
 
     '<h3>Consulter les informations d\'une structure</h3>' +
-    '<p>Survoler un pin affiche un encadré avec : le nom et le numéro de la structure (ligne Grist), son domaine géographique (détecté automatiquement si elle est dans un polygone, sinon valeur manuelle), sa classification Domaine/Famille/Groupe, son état structurel et son état de sécurité usager.</p>' +
-    '<p>L\'encadré reste ouvert tant que la souris est dessus, et se referme 1 seconde après que la souris le quitte réellement.</p>' +
-
-    '<h3>Les boutons de l\'encadré structure</h3>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
-      '<tr style="background:#f5f5f5;"><th style="text-align:left;padding:6px;border:1px solid #ddd;">Bouton</th><th style="text-align:left;padding:6px;border:1px solid #ddd;">Fonction</th></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">📄 Voir la/les fiche(s) visite(s)</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la ou les fiches de visite (onglets si plusieurs, triées de la plus récente à la plus ancienne). Message si aucune visite.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">➕ Créer une fiche visite</td><td style="padding:6px;border:1px solid #ddd;">Redirige vers le formulaire externe de saisie d\'une nouvelle visite.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">🧭 Naviguer</td><td style="padding:6px;border:1px solid #ddd;">Ouvre Google Maps centré sur la structure.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">📷 Photo(s) initial de la structure</td><td style="padding:6px;border:1px solid #ddd;">Affiche jusqu\'à 4 photos de référence avec description.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à toutes les structures.</td></tr>' +
-    '</table>' +
-
-    '<h3>Copier des coordonnées GPS</h3>' +
-    '<p>Un simple clic n\'importe où sur la carte copie les coordonnées GPS de l\'endroit cliqué dans le presse-papier, avec confirmation visuelle en bas de l\'écran.</p>' +
+    '<p>Survoler un pin affiche un encadré complet avec ses fiches visites, formulaires, coordonnées et photos associées.</p>' +
 
     '<h3>Rechercher une structure</h3>' +
-    '<p>Le panneau « Rechercher une ou des structures » (en haut à droite) propose :</p>' +
+    '<p>Le panneau en haut à droite propose :</p>' +
     '<ul>' +
-      '<li><b>Recherche par nom</b> : tapez un nom, la carte se recentre automatiquement.</li>' +
-      '<li><b>Navigation par catégorie</b> : cliquez sur la flèche (▾) pour dérouler l\'arborescence <b>Domaine → Famille → Groupe → Structure</b>. Cliquer sur une structure (📍) recentre la carte dessus et ouvre son encadré.</li>' +
+      '<li><b>Recherche textuelle</b> : tapez un nom pour centrer la carte.</li>' +
+      '<li><b>Arborescence hiérarchique</b> : déroulez successivement <b>Domaine ➔ Famille ➔ Groupe ➔ Structure</b> en cliquant sur la petite flèche `▸`.</li>' +
     '</ul>';
 
   const overlay = document.createElement('div');
@@ -964,6 +915,10 @@ window.__toggleTreePanel = function () {
   if (treeDiv) treeDiv.classList.toggle('open');
 };
 
+// -------------------------------------------------------------------
+// 3) Construction du Panneau de Recherche (Domaine -> Famille -> Groupe)
+// -------------------------------------------------------------------
+
 function buildSearchPanel() {
   let panel = document.getElementById('structure-search-panel');
   if (!panel) {
@@ -973,39 +928,67 @@ function buildSearchPanel() {
     document.body.appendChild(panel);
   }
 
+  // Map hiérarchique : Domaine -> Famille -> Groupe -> List[StructureIndex]
   const domaineTree = new Map();
-  const rootFamilies = new Map();
 
-  function addToTree(domaine, famille, groupe, structureIdx) {
-    const f = famille && famille.trim() ? famille.trim() : 'Non renseigné';
-    const g = groupe && groupe.trim() ? groupe.trim() : 'Non renseigné';
-    const d = domaine && domaine.trim() ? domaine.trim() : '';
-
-    let groupeMap;
-    if (d) {
-      if (!domaineTree.has(d)) domaineTree.set(d, new Map());
-      if (!domaineTree.get(d).has(f)) domaineTree.get(d).set(f, new Map());
-      groupeMap = domaineTree.get(d).get(f);
-    } else {
-      if (!rootFamilies.has(f)) rootFamilies.set(f, new Map());
-      groupeMap = rootFamilies.get(f);
-    }
-
-    if (!groupeMap.has(g)) groupeMap.set(g, []);
-    if (structureIdx !== null && structureIdx !== undefined) groupeMap.get(g).push(structureIdx);
-  }
-
-  // Chaque structure peut appartenir à plusieurs domaines (jusqu'à 5)
-  window.__structureRegistry.forEach((entry, idx) => {
-    if (entry.domaines && entry.domaines.length > 0) {
-      entry.domaines.forEach(d => addToTree(d, entry.famille, entry.groupe, idx));
-    } else {
-      addToTree('', entry.famille, entry.groupe, idx);
+  // Permet de retrouver le Domaine associé à une Famille si la structure n'a pas renseigné son Domaine
+  const familleToDomaineRef = new Map();
+  (window.__allClassifPairs || []).forEach(pair => {
+    if (pair.domaine && pair.famille) {
+      if (!familleToDomaineRef.has(pair.famille)) {
+        familleToDomaineRef.set(pair.famille, new Set());
+      }
+      familleToDomaineRef.get(pair.famille).add(pair.domaine);
     }
   });
 
+  function addToTree(domaine, famille, groupe, structureIdx) {
+    const d = (domaine && domaine.trim()) ? domaine.trim() : 'Domaine non spécifié';
+    const f = (famille && famille.trim()) ? famille.trim() : 'Famille non spécifiée';
+    const g = (groupe && groupe.trim()) ? groupe.trim() : 'Groupe non spécifié';
+
+    if (!domaineTree.has(d)) domaineTree.set(d, new Map());
+    const famMap = domaineTree.get(d);
+
+    if (!famMap.has(f)) famMap.set(f, new Map());
+    const grpMap = famMap.get(f);
+
+    if (!grpMap.has(g)) grpMap.set(g, []);
+
+    if (structureIdx !== null && structureIdx !== undefined) {
+      grpMap.get(g).push(structureIdx);
+    }
+  }
+
+  // 1) On peuple avec la table de référence (pour garder la structure théorique)
   (window.__allClassifPairs || []).forEach(pair => {
-    addToTree(pair.domaine, pair.famille, pair.groupe, null);
+    if (pair.domaine || pair.famille || pair.groupe) {
+      addToTree(pair.domaine, pair.famille, pair.groupe, null);
+    }
+  });
+
+  // 2) On associe les structures aux domaines
+  window.__structureRegistry.forEach((entry, idx) => {
+    let targetDomaines = [];
+
+    // Priorité 1 : Les 5 domaines renseignés directement sur la structure
+    if (entry.domaines && entry.domaines.length > 0) {
+      targetDomaines = entry.domaines;
+    } else {
+      // Priorité 2 : Recherche du domaine de référence correspondant à la Famille
+      if (entry.famille && familleToDomaineRef.has(entry.famille)) {
+        targetDomaines = Array.from(familleToDomaineRef.get(entry.famille));
+      }
+    }
+
+    // Fallback si aucun domaine n'a pu être résolu
+    if (targetDomaines.length === 0) {
+      targetDomaines = ['Domaine non spécifié'];
+    }
+
+    targetDomaines.forEach(d => {
+      addToTree(d, entry.famille, entry.groupe, idx);
+    });
   });
 
   function renderStructureLeaf(idx) {
@@ -1020,14 +1003,15 @@ function buildSearchPanel() {
     const dedupedIdxList = idxList.filter(idx => {
       const entry = window.__structureRegistry[idx];
       const key = normalizeForSearch(entry ? entry.nom : '');
-      if (seenNames.has(key)) return false;
+      if (!key || seenNames.has(key)) return false;
       seenNames.add(key);
       return true;
     });
 
     const structuresHtml = dedupedIdxList.length > 0
       ? dedupedIdxList.map(renderStructureLeaf).join('')
-      : '<div class="tree-empty-msg">Aucune structure n\'est associée aux paramètres sélectionnés.</div>';
+      : '<div class="tree-empty-msg">Aucune structure dans ce groupe.</div>';
+
     return (
       '<div class="tree-groupe">' +
         '<div class="tree-row">' +
@@ -1067,18 +1051,13 @@ function buildSearchPanel() {
     );
   }).join('');
 
-  const rootFamiliesHtml = Array.from(rootFamilies.keys()).sort()
-    .map(f => renderFamille(f, rootFamilies.get(f))).join('');
-
-  const treeHtml = domainesHtml + rootFamiliesHtml;
-
   panel.innerHTML =
     '<div class="structure-search-row">' +
       '<input type="text" id="structure-search-input" placeholder="Rechercher une ou des structures" oninput="window.__onStructureSearchInput(this.value)" />' +
       '<button class="structure-search-toggle" onclick="window.__toggleTreePanel()">▾</button>' +
     '</div>' +
-    '<div class="structure-tree" id="structure-tree">' + treeHtml + '</div>' +
-    '<div id="structure-no-result" class="structure-no-result">Aucune structure n\'est associée aux paramètres sélectionnés.</div>' +
+    '<div class="structure-tree" id="structure-tree">' + domainesHtml + '</div>' +
+    '<div id="structure-no-result" class="structure-no-result">Aucune structure ne correspond à la recherche.</div>' +
     '<div class="structure-search-reset" onclick="window.__resetStructureSearch()">Afficher toutes les structures</div>';
 }
 
@@ -1106,7 +1085,7 @@ async function drawRecords(records, mappings) {
 
   const domainePolygonsGlobal = [];
 
-  // Référence (carré bleu) : désormais 1 seule colonne Domaine
+  // Table de Référence
   window.__allClassifPairs = [];
   records.forEach(record => {
     try {
@@ -1115,25 +1094,9 @@ async function drawRecords(records, mappings) {
       const g = formatTextValue(mapped.GroupeRefListe).trim();
       const d = formatTextValue(mapped.DomaineRefListe).trim();
 
-      if (d) {
+      if (d || f || g) {
         window.__allClassifPairs.push({ domaine: d, famille: f, groupe: g });
-      } else if (f || g) {
-        window.__allClassifPairs.push({ domaine: '', famille: f, groupe: g });
       }
-    } catch (err) {
-      // ignore
-    }
-  });
-
-  window.__allFamilleNames = new Set();
-  window.__allGroupeNames = new Set();
-  records.forEach(record => {
-    try {
-      const mapped = grist.mapColumnNames(record) || record;
-      const f = formatTextValue(mapped.ListeToutesFamilles).trim();
-      const g = formatTextValue(mapped.ListeTousGroupes).trim();
-      if (f) window.__allFamilleNames.add(f);
-      if (g) window.__allGroupeNames.add(g);
     } catch (err) {
       // ignore
     }
@@ -1143,7 +1106,7 @@ async function drawRecords(records, mappings) {
     try {
       const mapped = grist.mapColumnNames(record) || record;
 
-      // ---- Domaine / Parc (polygone) ----
+      // Domaine / Parc (polygone)
       const wkt = mapped.PolygoneWKT;
       if (wkt && String(wkt).trim() !== '') {
         const polygons = parseWKT(wkt);
@@ -1189,7 +1152,7 @@ async function drawRecords(records, mappings) {
     }
   });
 
-  // ---- Structure (point) ----
+  // Regroupement des structures
   const structureGroups = new Map();
   records.forEach((record, index) => {
     try {
@@ -1199,7 +1162,7 @@ async function drawRecords(records, mappings) {
       if (!structureGroups.has(key)) structureGroups.set(key, []);
       structureGroups.get(key).push({ mapped, rowId: record.id });
     } catch (err) {
-      console.error('Erreur (regroupement structure) ligne ' + index + ' :', err, record);
+      console.error('Erreur ligne ' + index + ' :', err, record);
     }
   });
 
@@ -1254,7 +1217,7 @@ async function drawRecords(records, mappings) {
         }
       });
     } catch (err) {
-      console.error('Erreur (collecte visite) ligne ' + index + ' :', err, record);
+      console.error('Erreur visite ligne ' + index + ' :', err, record);
     }
   });
 
@@ -1280,7 +1243,6 @@ async function drawRecords(records, mappings) {
       const nom = mapped.NomStructure || 'Structure';
       const imageSrc = resolveImageValue(mapped.ImageStructure, tokenInfo);
 
-      // Structure (carré rouge) : désormais 5 colonnes Domaine
       const domainesStructure = [
         formatTextValue(mapped.DomaineStructure1).trim(),
         formatTextValue(mapped.DomaineStructure2).trim(),
@@ -1315,7 +1277,6 @@ async function drawRecords(records, mappings) {
       const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
       const visits = visitsByGroupKey.get(key) || [];
-
       visits.sort((a, b) => {
         if (a.parsedDate && b.parsedDate) return b.parsedDate - a.parsedDate;
         if (a.parsedDate) return -1;
@@ -1369,10 +1330,9 @@ async function drawRecords(records, mappings) {
         '</div>';
 
       attachHoverCard(marker, cardHtml);
-
       bounds.push([lat, lng]);
     } catch (err) {
-      console.error('Erreur lors du traitement du groupe de structure "' + key + '" :', err);
+      console.error('Erreur traitement structure :', err);
     }
   });
 
@@ -1384,56 +1344,36 @@ async function drawRecords(records, mappings) {
 }
 
 // -------------------------------------------------------------------
-// 3) Connexion à Grist
+// 4) Configuration de l'API Grist
 // -------------------------------------------------------------------
 
 grist.ready({
   columns: [
-    // ---- Groupe "Domaine / Parc" (polygone) ----
-    { name: 'NomDomaine', title: '🟩 Domaine/Parc — Nom', type: 'Text', optional: true,
-      description: 'Nom du domaine ou du parc (affiché au survol du polygone)' },
-    { name: 'PolygoneWKT', title: '🟩 Domaine/Parc — Polygone WKT', type: 'Text', optional: true,
-      description: 'MULTIPOLYGON(((...))) ou POLYGON(((...)))' },
-    { name: 'CouleurDomaine', title: '🟩 Domaine/Parc — Couleur', type: 'Text', optional: true,
-      description: 'Ex : #2e7d32 ou green (optionnel, vert par défaut)' },
-    { name: 'SuperficieDomaine', title: '🟩 Domaine/Parc — Superficie', type: 'Text,Numeric,Int,Any', optional: true,
-      description: 'Ex : 12 ha ou 120 000 m²' },
-    { name: 'ProtectionDomaine', title: '🟩 Domaine/Parc — Protection', type: 'Text', optional: true,
-      description: 'Ex : Site classé, Natura 2000...' },
-    { name: 'PhotoDomaine', title: '🟩 Domaine/Parc — Photo', type: 'Text,Attachments', optional: true,
-      description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
-    { name: 'DescriptionPhotoDomaine', title: '🟩 Domaine/Parc — Description photo', type: 'Text', optional: true,
-      description: 'Légende affichée sous la photo' },
+    { name: 'NomDomaine', title: '🟩 Domaine/Parc — Nom', type: 'Text', optional: true },
+    { name: 'PolygoneWKT', title: '🟩 Domaine/Parc — Polygone WKT', type: 'Text', optional: true },
+    { name: 'CouleurDomaine', title: '🟩 Domaine/Parc — Couleur', type: 'Text', optional: true },
+    { name: 'SuperficieDomaine', title: '🟩 Domaine/Parc — Superficie', type: 'Text,Numeric,Int,Any', optional: true },
+    { name: 'ProtectionDomaine', title: '🟩 Domaine/Parc — Protection', type: 'Text', optional: true },
+    { name: 'PhotoDomaine', title: '🟩 Domaine/Parc — Photo', type: 'Text,Attachments', optional: true },
+    { name: 'DescriptionPhotoDomaine', title: '🟩 Domaine/Parc — Description photo', type: 'Text', optional: true },
 
-    // ---- Groupe "Structure" (point) ----
-    { name: 'NomStructure', title: '🟥 Structure — Nom', type: 'Text', optional: true,
-      description: 'Nom de la structure (titre de l\'encadré au survol)' },
+    { name: 'NomStructure', title: '🟥 Structure — Nom', type: 'Text', optional: true },
     { name: 'Latitude', title: '🟥 Structure — Latitude', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Longitude', title: '🟥 Structure — Longitude', type: 'Numeric,Int,Text,Any', optional: true },
-    { name: 'DomaineStructure', title: '🟥 Structure — Domaine géographique (manuel, repli)', type: 'Text', optional: true,
-      description: 'Utilisé seulement si aucun polygone de domaine ne contient la structure' },
-    { name: 'DomaineStructure1', title: '🟥 Structure — Domaine 1', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
-      description: 'Un des domaines auquel appartient cette structure (jusqu\'à 5 colonnes domaine)' },
+    { name: 'DomaineStructure', title: '🟥 Structure — Domaine géographique (manuel, repli)', type: 'Text', optional: true },
+    { name: 'DomaineStructure1', title: '🟥 Structure — Domaine 1', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
     { name: 'DomaineStructure2', title: '🟥 Structure — Domaine 2', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
     { name: 'DomaineStructure3', title: '🟥 Structure — Domaine 3', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
     { name: 'DomaineStructure4', title: '🟥 Structure — Domaine 4', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
     { name: 'DomaineStructure5', title: '🟥 Structure — Domaine 5', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
-    { name: 'FamilleStructure', title: '🟥 Structure — Famille (colonne de LA FAMILLE de cette structure)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
-      description: 'Sélectionne précisément la colonne qui contient la famille de la structure' },
-    { name: 'GroupeStructure', title: '🟥 Structure — Groupe (colonne du GROUPE de cette structure)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
-      description: 'Sélectionne précisément la colonne qui contient le groupe de la structure' },
-    { name: 'DomaineRefListe', title: '🟦 Référence — Domaine (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
-      description: 'Domaine auquel appartient la Famille de cette ligne' },
-    { name: 'FamilleRefListe', title: '🟦 Référence — Toutes les Familles', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
-      description: 'Colonne listant TOUTES les familles possibles, pour l\'arbre de recherche' },
-    { name: 'GroupeRefListe', title: '🟦 Référence — Tous les Groupes (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
-      description: 'Colonne listant TOUS les groupes possibles, reliée à sa Famille sur la même ligne' },
-    { name: 'EtatStructure', title: '🟥 Structure — État', type: 'Text', optional: true,
-      description: 'Ex : Bon état, À surveiller, Dégradé...' },
-    { name: 'SecuriteStructure', title: '🟥 Structure — Sécurité', type: 'Text', optional: true,
-      description: 'Ex : Sécurisée, À risque...' },
-    { name: 'LienFicheStructure', title: '🟥 Structure — Lien fiche visite (URL, optionnel)', type: 'Text', optional: true,
-      description: 'Si rempli : ouvre ce lien externe au clic. Sinon, affiche la fiche interne.' },
+    { name: 'FamilleStructure', title: '🟥 Structure — Famille', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'GroupeStructure', title: '🟥 Structure — Groupe', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'DomaineRefListe', title: '🟦 Référence — Domaine', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'FamilleRefListe', title: '🟦 Référence — Famille', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'GroupeRefListe', title: '🟦 Référence — Groupe', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'EtatStructure', title: '🟥 Structure — État', type: 'Text', optional: true },
+    { name: 'SecuriteStructure', title: '🟥 Structure — Sécurité', type: 'Text', optional: true },
+    { name: 'LienFicheStructure', title: '🟥 Structure — Lien fiche visite (URL, optionnel)', type: 'Text', optional: true },
     { name: 'InspecteursFiche', title: '🟥 Fiche visite — Inspecteur(s)', type: 'Text,Choice,ChoiceList,Reference,ReferenceList,Any', optional: true },
     { name: 'DateVisiteFiche', title: '🟥 Fiche visite — Date de la visite', type: 'Text,Date,DateTime,Any', optional: true },
     { name: 'NomCompletStructureFiche', title: '🟥 Fiche visite — Nom complet structure', type: 'Text', optional: true },
@@ -1460,9 +1400,9 @@ grist.ready({
     { name: 'Photo4Structure', title: '🟥 Structure — Photo 4', type: 'Text,Attachments', optional: true },
     { name: 'DescriptionPhoto4Structure', title: '🟥 Structure — Description photo 4', type: 'Text', optional: true },
     { name: 'ImageStructure', title: '🟥 Structure — Image du pin', type: 'Text,Attachments', optional: true },
-    { name: 'GrilleEval1Structure', title: '🟥 Structure — Grille éval. 1 (État structurel)', type: 'Text,Attachments', optional: true },
+    { name: 'GrilleEval1Structure', title: '🟥 Structure — Grille éval. 1', type: 'Text,Attachments', optional: true },
     { name: 'DescriptionGrilleEval1Structure', title: '🟥 Structure — Description grille éval. 1', type: 'Text', optional: true },
-    { name: 'GrilleEval2Structure', title: '🟥 Structure — Grille éval. 2 (Sécurité usagers)', type: 'Text,Attachments', optional: true },
+    { name: 'GrilleEval2Structure', title: '🟥 Structure — Grille éval. 2', type: 'Text,Attachments', optional: true },
     { name: 'DescriptionGrilleEval2Structure', title: '🟥 Structure — Description grille éval. 2', type: 'Text', optional: true },
     { name: 'CouleurStructure', title: '🟥 Structure — Couleur du pin', type: 'Text', optional: true }
   ],
