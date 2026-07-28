@@ -1456,8 +1456,6 @@ async function drawRecords(records, mappings) {
       const classifDomaine = domainesStructure.length > 0 ? domainesStructure.join(', ') : '—';
       const classifFamille = familleStructureNom || '—';
       const classifGroupe = formatTextValue(mapped.GroupeStructure) || '—';
-      const etat = mapped.EtatStructure || '—';
-      const securite = mapped.SecuriteStructure || '—';
       const lienFiche = mapped.LienFicheStructure || '';
       const lienFormulaire = mapped.LienFormulaireStructure || '';
       const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
@@ -1472,6 +1470,12 @@ async function drawRecords(records, mappings) {
         if (b.parsedDate) return 1;
         return 0;
       });
+
+      // État et Sécurité proviennent de la dernière visite (fiche visite la plus récente),
+      // pas des colonnes de la structure elle-même : ces 2 colonnes sont liées aux visites.
+      const derniereVisite = visits.length > 0 ? visits[0] : null;
+      const etat = (derniereVisite && derniereVisite.data.etatStructurel) || '—';
+      const securite = (derniereVisite && derniereVisite.data.etatSecurite) || '—';
 
       // Bouton "Voir la/les fiche(s)" : libellé au singulier ou pluriel selon le nombre de visites
       const warningId = 'warn-' + Math.random().toString(36).slice(2);
@@ -1580,10 +1584,6 @@ grist.ready({
       description: 'Colonne listant TOUS les groupes possibles, reliée à sa Famille sur la même ligne' },
     { name: 'DomaineClassification', title: '🟦 Référence — Domaine (classification)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
       description: 'Utilisé pour le filtre de recherche (arbre Domaine > Famille > Groupe)' },
-    { name: 'EtatStructure', title: '🟥 Structure — État', type: 'Text', optional: true,
-      description: 'Ex : Bon état, À surveiller, Dégradé...' },
-    { name: 'SecuriteStructure', title: '🟥 Structure — Sécurité', type: 'Text', optional: true,
-      description: 'Ex : Sécurisée, À risque...' },
     { name: 'LienFicheStructure', title: '🟥 Structure — Lien fiche visite (URL, optionnel)', type: 'Text', optional: true,
       description: 'Si rempli : ouvre ce lien externe au clic. Sinon, affiche la fiche interne ci-dessous.' },
     { name: 'InspecteursFiche', title: '🟥 Fiche visite — Inspecteur(s)', type: 'Text,Choice,ChoiceList,Reference,ReferenceList,Any', optional: true,
