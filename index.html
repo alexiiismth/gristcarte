@@ -1094,7 +1094,14 @@ function buildSearchPanel() {
   }
 
   window.__structureRegistry.forEach((entry, idx) => {
-    addToTree(entry.domaine, entry.famille, entry.groupe, idx);
+    // entry.domaine est un tableau (une Famille peut appartenir à plusieurs Domaines) :
+    // la structure doit apparaître sous chacun d'eux, ou à la racine si aucun domaine trouvé.
+    const domainesEntry = Array.isArray(entry.domaine) ? entry.domaine : (entry.domaine ? [entry.domaine] : []);
+    if (domainesEntry.length === 0) {
+      addToTree('', entry.famille, entry.groupe, idx);
+    } else {
+      domainesEntry.forEach(d => addToTree(d, entry.famille, entry.groupe, idx));
+    }
   });
   // Ajoute aussi les combinaisons sans structure associée (ex : base Famille/Groupe séparée)
   (window.__allClassifPairs || []).forEach(pair => {
@@ -1233,6 +1240,25 @@ async function drawRecords(records, mappings) {
       // ignore silencieusement une ligne mal formée pour cette collecte annexe
     }
   });
+
+  // Table de correspondance Famille -> Domaine(s), construite à partir du bloc de référence
+  // (FamilleRefListe / DomaineRefListe1-5, placés côte à côte sur les mêmes lignes de ce bloc).
+  // Sert à retrouver le(s) domaine(s) d'une structure via sa Famille (colonne "structure" à gauche),
+  // SANS jamais relier ce bloc de référence (à droite) à une structure par simple position de ligne
+  // (les colonnes grisées "-" séparent volontairement les deux blocs dans le tableau Grist).
+  // Une Famille peut appartenir à plusieurs Domaines : la structure apparaîtra alors sous chacun d'eux.
+  window.__familleToDomaines = new Map();
+  (window.__allClassifPairs || []).forEach(pair => {
+    const fKey = pair.famille.trim().toLowerCase();
+    if (!fKey || !pair.domaine) return;
+    if (!window.__familleToDomaines.has(fKey)) window.__familleToDomaines.set(fKey, new Set());
+    window.__familleToDomaines.get(fKey).add(pair.domaine);
+  });
+  function getDomainesForFamille(famille) {
+    const fKey = (famille || '').toString().trim().toLowerCase();
+    if (!fKey || !window.__familleToDomaines.has(fKey)) return [];
+    return Array.from(window.__familleToDomaines.get(fKey));
+  }
 
   // Recense la liste EXHAUSTIVE des Familles et des Groupes depuis les colonnes de référence dédiées
   // (indépendantes des structures), pour que le menu déroulant propose absolument tout.
@@ -1405,12 +1431,17 @@ async function drawRecords(records, mappings) {
       const nom = mapped.NomStructure || 'Structure';
       const imageSrc = resolveImageValue(mapped.ImageStructure, tokenInfo);
 
+      // Domaine(s) de cette structure : retrouvé(s) via sa Famille dans le bloc de référence
+      // (une Famille peut appartenir à plusieurs Domaines), jamais lu directement sur cette ligne.
+      const familleStructureNom = formatTextValue(mapped.FamilleStructure);
+      const domainesStructure = getDomainesForFamille(familleStructureNom);
+
       // Enregistre cette structure dans le registre global (utilisé par le panneau de recherche)
       window.__structureRegistry.push({
         marker: null, // renseigné juste après la création du marqueur
         nom: nom,
-        domaine: mapped.DomaineClassification || '',
-        famille: formatTextValue(mapped.FamilleStructure),
+        domaine: domainesStructure, // tableau : une Famille peut appartenir à plusieurs Domaines
+        famille: familleStructureNom,
         groupe: formatTextValue(mapped.GroupeStructure)
       });
       const registryEntry = window.__structureRegistry[window.__structureRegistry.length - 1];
@@ -1422,8 +1453,8 @@ async function drawRecords(records, mappings) {
 
       const domaineAuto = findDomaineForPoint(lat, lng, domainePolygonsGlobal);
       const domaineGeo = domaineAuto || mapped.DomaineStructure || '—';
-      const classifDomaine = mapped.DomaineClassification || '—';
-      const classifFamille = formatTextValue(mapped.FamilleStructure) || '—';
+      const classifDomaine = domainesStructure.length > 0 ? domainesStructure.join(', ') : '—';
+      const classifFamille = familleStructureNom || '—';
       const classifGroupe = formatTextValue(mapped.GroupeStructure) || '—';
       const etat = mapped.EtatStructure || '—';
       const securite = mapped.SecuriteStructure || '—';
