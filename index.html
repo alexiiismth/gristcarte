@@ -1734,11 +1734,24 @@ function buildCalendarPrintHtml(year, month) {
   const startOffset = (firstOfMonth.getDay() + 6) % 7; // lundi = 0 ... dimanche = 6
   const gridStart = new Date(year, month, 1 - startOffset);
 
+  // N'affiche que les semaines contenant au moins un jour du mois exporté (pas de 6e ligne
+  // uniquement composée de jours du mois suivant), et laisse les cases des mois adjacents
+  // complètement vides (pas de numéro, pas de visite) pour ne pas les confondre avec le mois exporté.
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const numWeeks = Math.ceil((startOffset + daysInMonth) / 7);
+  const totalCells = numWeeks * 7;
+
   let cellsHtml = '';
-  for (let i = 0; i < 42; i++) {
+  for (let i = 0; i < totalCells; i++) {
     const cellDate = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
-    const key = calendarDateKey(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
     const isOtherMonth = cellDate.getMonth() !== month;
+
+    if (isOtherMonth) {
+      cellsHtml += '<div class="pdf-calendar-day other-month"></div>';
+      continue;
+    }
+
+    const key = calendarDateKey(cellDate.getFullYear(), cellDate.getMonth(), cellDate.getDate());
     const visits = window.__visitPlanning[key] || [];
 
     const visitsHtml = visits.map(function (v) {
@@ -1746,7 +1759,7 @@ function buildCalendarPrintHtml(year, month) {
     }).join('');
 
     cellsHtml +=
-      '<div class="pdf-calendar-day' + (isOtherMonth ? ' other-month' : '') + '">' +
+      '<div class="pdf-calendar-day">' +
         '<div class="pdf-calendar-day-num">' + cellDate.getDate() + '</div>' +
         visitsHtml +
       '</div>';
