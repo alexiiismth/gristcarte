@@ -359,6 +359,18 @@
   }
   .calendar-nav-btn:hover, .calendar-today-btn:hover { background: #e0e0e0; }
   .calendar-today-btn { font-size: 12px; font-weight: 600; }
+  .calendar-save-btn {
+    border: none;
+    background: #1565c0;
+    color: #fff;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .calendar-save-btn:hover { background: #0d4a94; }
   .calendar-weekdays {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -1536,14 +1548,31 @@ const CALENDAR_MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 function calendarDateKey(year, monthIndex, day) { return year + '-' + pad2(monthIndex + 1) + '-' + pad2(day); }
 
-// Enregistre la planification courante dans les options du widget (persisté par Grist, partagé entre utilisateurs)
-function saveVisitPlanning() {
+// Enregistre la planification courante dans les options du widget (persisté par Grist, partagé entre utilisateurs).
+// Asynchrone et avec confirmation visuelle, car grist.setOption() est un appel réseau : sans l'attendre,
+// un échec (ex. droits d'accès, connexion) passait inaperçu et la planification semblait "disparaître" au rafraîchissement.
+async function saveVisitPlanning(showFeedback) {
+  let ok = false;
   try {
-    grist.setOption('visitPlanning', window.__visitPlanning);
+    await grist.setOption('visitPlanning', window.__visitPlanning);
+    ok = true;
   } catch (err) {
     console.error('Impossible d\'enregistrer la planification des visites dans les options du widget Grist :', err);
   }
+  try {
+    localStorage.setItem('cerema-visit-planning-backup', JSON.stringify(window.__visitPlanning));
+  } catch (err) { /* pas grave, sauvegarde locale seulement en secours */ }
+
+  if (showFeedback) {
+    showCoordToast(ok ? '💾 Planification enregistrée' : '⚠️ Échec de l\'enregistrement, réessayez');
+  }
+  return ok;
 }
+
+// Bouton "Enregistrer" du calendrier : sauvegarde immédiate et explicite, avec confirmation visible
+window.__saveCalendarNow = function () {
+  saveVisitPlanning(true);
+};
 
 window.showCalendarModal = function () {
   window.closePhotoModal();
@@ -1564,6 +1593,7 @@ window.showCalendarModal = function () {
         '<span id="calendar-month-label" class="calendar-month-label"></span>' +
         '<button class="calendar-nav-btn" onclick="window.__calendarNextMonth()" title="Mois suivant">&#8594;</button>' +
         '<button class="calendar-today-btn" onclick="window.__calendarToday()">Aujourd\'hui</button>' +
+        '<button class="calendar-save-btn" onclick="window.__saveCalendarNow()" title="Enregistrer la planification">💾 Enregistrer</button>' +
       '</div>' +
       '<div id="calendar-modal-body"></div>' +
     '</div>';
@@ -1726,7 +1756,7 @@ window.__confirmAddVisit = function () {
 
   if (!window.__visitPlanning[dateKey]) window.__visitPlanning[dateKey] = [];
   window.__visitPlanning[dateKey].push(entry);
-  saveVisitPlanning();
+  saveVisitPlanning(true);
 
   window.closeCalendarAddDialog();
   renderCalendarMonth();
@@ -1736,7 +1766,7 @@ window.__removeVisit = function (dateKey, idx) {
   if (!window.__visitPlanning[dateKey]) return;
   window.__visitPlanning[dateKey].splice(idx, 1);
   if (window.__visitPlanning[dateKey].length === 0) delete window.__visitPlanning[dateKey];
-  saveVisitPlanning();
+  saveVisitPlanning(true);
   renderCalendarMonth();
 };
 
@@ -2476,7 +2506,17 @@ grist.onRecords((records, mappings) => drawRecords(records, mappings));
 // et se met à jour automatiquement si elle est modifiée ailleurs (autre utilisateur, autre session).
 try {
   grist.onOptions(function (options) {
-    window.__visitPlanning = (options && options.visitPlanning) ? options.visitPlanning : {};
+    if (options && options.visitPlanning && Object.keys(options.visitPlanning).length > 0) {
+      window.__visitPlanning = options.visitPlanning;
+    } else {
+      // Rien d'enregistré côté Grist : on tente de récupérer une éventuelle sauvegarde de secours locale
+      try {
+        const backup = localStorage.getItem('cerema-visit-planning-backup');
+        window.__visitPlanning = backup ? JSON.parse(backup) : {};
+      } catch (err) {
+        window.__visitPlanning = {};
+      }
+    }
     if (document.getElementById('calendar-modal-overlay')) renderCalendarMonth();
   });
 } catch (err) {
