@@ -289,6 +289,101 @@
     justify-content: center;
   }
   .map-info-button:hover { background: #f2f2f2; }
+
+  .map-toolbar-btn {
+    position: fixed;
+    top: 12px;
+    z-index: 1000;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .map-toolbar-btn:hover { background: #f2f2f2; }
+  .map-toolbar-btn.active { background: #1565c0; }
+  #map-satellite-btn { right: 348px; }
+  #map-measure-btn { right: 396px; }
+
+  .measure-label-icon {
+    background: transparent;
+    border: none;
+  }
+  .measure-label {
+    transform: translate(-50%, -50%);
+    background: #fff;
+    padding: 3px 7px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #c62828;
+    white-space: nowrap;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.35);
+  }
+
+  .domaine-legend {
+    position: fixed;
+    bottom: 20px;
+    left: 12px;
+    z-index: 1000;
+    background: rgba(255,255,255,0.95);
+    border-radius: 8px;
+    padding: 10px 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    font-size: 12px;
+    max-width: 260px;
+  }
+  .domaine-legend h4 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    color: #1a1a1a;
+  }
+  .domaine-legend .legend-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 5px 0;
+  }
+  .domaine-legend .legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .domaine-legend span:last-child {
+    color: #444;
+    line-height: 1.3;
+  }
+
+  .fiche-pdf-btn {
+    width: 100%;
+    margin-top: 14px;
+    background: #37474f;
+  }
+
+  @media print {
+    body * { visibility: hidden; }
+    .photo-modal-overlay, .photo-modal-overlay * { visibility: visible; }
+    .photo-modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: #fff;
+    }
+    .photo-modal {
+      box-shadow: none;
+      max-height: none;
+      overflow: visible;
+    }
+    .close-btn, .fiche-pdf-btn, .fiche-tabs { display: none !important; }
+  }
   .info-guide-btn {
     position: fixed;
     top: 12px;
@@ -468,9 +563,28 @@ function parseWKT(wkt) {
 // -------------------------------------------------------------------
 
 const map = L.map('map').setView([46.6, 2.4], 6); // vue par défaut : France
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
+
+const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+});
+
+let satelliteActive = false;
+function toggleSatellite() {
+  satelliteActive = !satelliteActive;
+  if (satelliteActive) {
+    map.removeLayer(osmLayer);
+    satelliteLayer.addTo(map);
+  } else {
+    map.removeLayer(satelliteLayer);
+    osmLayer.addTo(map);
+  }
+  const btn = document.getElementById('map-satellite-btn');
+  if (btn) btn.classList.toggle('active', satelliteActive);
+}
 
 // Encart de crédit, affiché à côté des boutons de zoom (haut à gauche)
 const creditControl = L.control({ position: 'topleft' });
@@ -481,6 +595,76 @@ creditControl.onAdd = function () {
   return div;
 };
 creditControl.addTo(map);
+
+// -------------------------------------------------------------------
+// Outil de mesure de distance
+// -------------------------------------------------------------------
+
+let measureModeActive = false;
+let measureStartLatLng = null;
+let measureLine = null;
+let measureLabelMarker = null;
+const measureLayerGroup = L.layerGroup().addTo(map);
+
+function formatDistance(meters) {
+  if (meters < 1000) return Math.round(meters) + ' m';
+  return (meters / 1000).toFixed(2) + ' km';
+}
+
+function makeMeasureLabelIcon(text) {
+  return L.divIcon({
+    className: 'measure-label-icon',
+    html: '<div class="measure-label">' + text + '</div>',
+    iconSize: [0, 0]
+  });
+}
+
+function updateMeasureLine(latlng) {
+  if (!measureLine || !measureStartLatLng) return;
+  measureLine.setLatLngs([measureStartLatLng, latlng]);
+  const dist = map.distance(measureStartLatLng, latlng);
+  const midLat = (measureStartLatLng.lat + latlng.lat) / 2;
+  const midLng = (measureStartLatLng.lng + latlng.lng) / 2;
+  if (measureLabelMarker) {
+    measureLabelMarker.setLatLng([midLat, midLng]);
+    measureLabelMarker.setIcon(makeMeasureLabelIcon(formatDistance(dist)));
+  }
+}
+
+function onMeasureClick(latlng) {
+  if (!measureStartLatLng) {
+    // Premier clic : point de départ (on repart d'une mesure propre)
+    measureLayerGroup.clearLayers();
+    measureStartLatLng = latlng;
+    measureLine = L.polyline([latlng, latlng], { color: '#e53935', weight: 3, dashArray: '6,8' }).addTo(measureLayerGroup);
+    L.circleMarker(latlng, { radius: 5, color: '#e53935', fillColor: '#e53935', fillOpacity: 1, weight: 2 }).addTo(measureLayerGroup);
+    measureLabelMarker = L.marker(latlng, { icon: makeMeasureLabelIcon('0 m'), interactive: false }).addTo(measureLayerGroup);
+  } else {
+    // Second clic : point d'arrivée, la mesure est figée
+    updateMeasureLine(latlng);
+    L.circleMarker(latlng, { radius: 5, color: '#e53935', fillColor: '#e53935', fillOpacity: 1, weight: 2 }).addTo(measureLayerGroup);
+    measureStartLatLng = null;
+    measureLine = null;
+    measureLabelMarker = null;
+  }
+}
+
+function toggleMeasureMode() {
+  measureModeActive = !measureModeActive;
+  const btn = document.getElementById('map-measure-btn');
+  if (btn) btn.classList.toggle('active', measureModeActive);
+  measureLayerGroup.clearLayers();
+  measureStartLatLng = null;
+  measureLine = null;
+  measureLabelMarker = null;
+  map.getContainer().style.cursor = measureModeActive ? 'crosshair' : '';
+}
+
+map.on('mousemove', function (e) {
+  if (measureModeActive && measureStartLatLng) {
+    updateMeasureLine(e.latlng);
+  }
+});
 
 // Bouton "info" (guide d'utilisation), affiché à gauche du panneau de recherche, en haut à droite
 function ensureInfoButton() {
@@ -494,6 +678,69 @@ function ensureInfoButton() {
   document.body.appendChild(btn);
 }
 ensureInfoButton();
+
+// Bouton "vue satellite", affiché à gauche du bouton info
+function ensureSatelliteButton() {
+  if (document.getElementById('map-satellite-btn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'map-satellite-btn';
+  btn.className = 'map-toolbar-btn';
+  btn.title = 'Basculer en vue satellite';
+  btn.textContent = '🛰️';
+  btn.onclick = toggleSatellite;
+  document.body.appendChild(btn);
+}
+ensureSatelliteButton();
+
+// Bouton "mesurer une distance", affiché à gauche du bouton vue satellite
+function ensureMeasureButton() {
+  if (document.getElementById('map-measure-btn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'map-measure-btn';
+  btn.className = 'map-toolbar-btn';
+  btn.title = 'Mesurer une distance';
+  btn.textContent = '📏';
+  btn.onclick = toggleMeasureMode;
+  document.body.appendChild(btn);
+}
+ensureMeasureButton();
+
+// Légende des couleurs de domaines géographiques (bas à gauche)
+function ensureDomaineLegend() {
+  if (document.getElementById('domaine-legend')) return;
+  const div = document.createElement('div');
+  div.id = 'domaine-legend';
+  div.className = 'domaine-legend';
+  div.innerHTML =
+    '<h4>Légende — Domaines géographiques</h4>' +
+    '<div class="legend-row"><span class="legend-swatch" style="background:#1565c0;"></span>' +
+      '<span>Étangs / lacs / marais / tourbières / vallées humides</span></div>' +
+    '<div class="legend-row"><span class="legend-swatch" style="background:#2e7d32;"></span>' +
+      '<span>Forêts / bois / landes / prairies / bocages / pelouses / plaines</span></div>' +
+    '<div class="legend-row"><span class="legend-swatch" style="background:#c62828;"></span>' +
+      '<span>Coteaux / carrières / sites rocheux / anciens sites miniers</span></div>';
+  document.body.appendChild(div);
+}
+ensureDomaineLegend();
+
+// Détermine automatiquement la couleur d'un domaine à partir de mots-clés dans son "milieu"
+// (évite d'avoir à lister exhaustivement chaque cas : quelques mots-clés représentatifs suffisent)
+const MILIEU_KEYWORDS_BLEU = ['étang', 'etang', 'lac', 'marais', 'tourbière', 'tourbiere', 'vallée humide',
+  'vallee humide', 'zone humide', 'mare', 'rivière', 'riviere', 'ruisseau', 'fleuve', 'plan d\'eau',
+  'zone inondable', 'roselière', 'roseliere', 'étier', 'etier'];
+const MILIEU_KEYWORDS_VERT = ['forêt', 'foret', 'bois', 'lande', 'prairie', 'bocage', 'pelouse', 'plaine',
+  'friche', 'pâture', 'pature', 'verger', 'haie', 'zone agricole', 'clairière', 'clairiere', 'sous-bois'];
+const MILIEU_KEYWORDS_ROUGE = ['coteau', 'carrière', 'carriere', 'site rocheux', 'rocher', 'falaise',
+  'ancien site minier', 'mine', 'minier', 'affleurement', 'éboulis', 'eboulis', 'pierrier', 'ardoisière', 'ardoisiere'];
+
+function classifyMilieuColor(milieu) {
+  if (!milieu) return null;
+  const text = normalizeForSearch(milieu);
+  if (MILIEU_KEYWORDS_BLEU.some(k => text.includes(k))) return '#1565c0';
+  if (MILIEU_KEYWORDS_VERT.some(k => text.includes(k))) return '#2e7d32';
+  if (MILIEU_KEYWORDS_ROUGE.some(k => text.includes(k))) return '#c62828';
+  return null;
+}
 
 window.showGuideModal = function () {
   window.closePhotoModal();
@@ -579,6 +826,11 @@ function showCoordToast(message) {
 }
 
 map.on('click', function (e) {
+  if (measureModeActive) {
+    onMeasureClick(e.latlng);
+    return;
+  }
+
   const lat = e.latlng.lat.toFixed(6);
   const lng = e.latlng.lng.toFixed(6);
   const coordText = lat + ', ' + lng;
@@ -858,6 +1110,7 @@ window.showFicheModal = async function (storeId) {
       '<h3>📄 ' + (showTabs ? 'Fiches visites' : 'Fiche visite') + '</h3>' +
       tabsHtml +
       '<div id="fiche-content-area"><p>Chargement…</p></div>' +
+      '<button class="btn btn-form fiche-pdf-btn" onclick="window.print()">🖨️ Exporter en PDF</button>' +
     '</div>';
   document.body.appendChild(overlay);
 
@@ -1285,7 +1538,7 @@ async function drawRecords(records, mappings) {
       if (wkt && String(wkt).trim() !== '') {
         const polygons = parseWKT(wkt);
         domainePolygonsGlobal.push({ name: mapped.NomDomaine || 'Domaine', polygons: polygons });
-        const color = mapped.CouleurDomaine || '#2e7d32'; // vert par défaut
+        const color = mapped.CouleurDomaine || classifyMilieuColor(mapped.MilieuDomaine) || '#2e7d32'; // vert par défaut
         const nomDomaine = mapped.NomDomaine || 'Domaine';
         const superficie = mapped.SuperficieDomaine || '—';
         const protection = mapped.ProtectionDomaine || '—';
@@ -1550,8 +1803,10 @@ grist.ready({
       description: 'Nom du domaine ou du parc (affiché au survol du polygone)' },
     { name: 'PolygoneWKT', title: '🟩 Domaine/Parc — Polygone WKT', type: 'Text', optional: true,
       description: 'MULTIPOLYGON(((...))) ou POLYGON(((...)))' },
-    { name: 'CouleurDomaine', title: '🟩 Domaine/Parc — Couleur', type: 'Text', optional: true,
-      description: 'Ex : #2e7d32 ou green (optionnel, vert par défaut)' },
+    { name: 'CouleurDomaine', title: '🟩 Domaine/Parc — Couleur (manuelle, prioritaire)', type: 'Text', optional: true,
+      description: 'Optionnel : force une couleur précise (ex : #2e7d32). Si vide, la couleur est déduite automatiquement du Milieu.' },
+    { name: 'MilieuDomaine', title: '🟩 Domaine/Parc — Milieu', type: 'Text', optional: true,
+      description: 'Description du milieu (ex : "forêt", "étang", "carrière"...) : détermine automatiquement la couleur si aucune couleur manuelle n\'est fournie' },
     { name: 'SuperficieDomaine', title: '🟩 Domaine/Parc — Superficie', type: 'Text,Numeric,Int,Any', optional: true,
       description: 'Ex : 12 ha ou 120 000 m²' },
     { name: 'ProtectionDomaine', title: '🟩 Domaine/Parc — Protection', type: 'Text', optional: true,
