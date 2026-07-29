@@ -49,6 +49,13 @@
     font-size: 11px;
     color: #888;
   }
+  .grade-badge {
+    display: inline-block;
+    padding: 1px 9px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 12px;
+  }
   .structure-card .row {
     font-size: 13px;
     margin: 4px 0;
@@ -168,6 +175,38 @@
   .fiche-modal {
     min-width: 320px;
   }
+
+  .health-modal { min-width: 380px; max-width: 480px; }
+  .health-subtitle { font-size: 13px; color: #555; margin: -6px 0 16px 0; }
+  .health-bars { display: flex; flex-direction: column; gap: 12px; }
+  .health-row { display: flex; align-items: center; gap: 10px; }
+  .health-row-label { width: 150px; font-size: 12px; color: #333; flex-shrink: 0; }
+  .health-row-bar-bg { flex: 1; height: 14px; background: #eee; border-radius: 7px; overflow: hidden; }
+  .health-row-bar { height: 100%; border-radius: 7px; transition: width 0.3s ease; }
+  .health-row-pct { width: 70px; text-align: right; font-size: 12px; font-weight: 700; color: #222; flex-shrink: 0; }
+  .health-row-count { font-weight: 400; color: #888; }
+  .health-note { font-size: 11px; color: #888; margin-top: 16px; line-height: 1.4; }
+
+  .itinerary-modal { min-width: 340px; max-width: 420px; }
+  .itinerary-label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; }
+  .itinerary-count-input {
+    width: 70px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; margin-bottom: 10px;
+  }
+  .itinerary-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .itinerary-row-num {
+    width: 20px; height: 20px; border-radius: 50%; background: #1565c0; color: #fff;
+    font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .itinerary-structure-input {
+    flex: 1; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; min-width: 0;
+  }
+  .itinerary-calc-btn { width: 100%; margin-top: 10px; }
+  .itinerary-error { color: #c62828; font-size: 12px; }
+  .itinerary-warning { color: #e65100; font-size: 12px; background: #fff3e0; padding: 6px 8px; border-radius: 6px; }
+  .itinerary-legs { font-size: 12px; color: #333; margin: 10px 0; line-height: 1.6; }
+  .itinerary-total { font-size: 14px; color: #111; margin: 10px 0; padding-top: 8px; border-top: 1px solid #ddd; }
+  .itinerary-nav-buttons { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+
   .guide-modal {
     max-width: 700px;
   }
@@ -311,6 +350,8 @@
   #map-satellite-btn { right: 348px; }
   #map-measure-btn { right: 396px; }
   #map-calendar-btn { right: 444px; }
+  #map-health-btn { right: 492px; }
+  #map-itinerary-btn { right: 540px; }
 
   .measure-label-icon {
     background: transparent;
@@ -1035,6 +1076,32 @@ function ensureCalendarButton() {
 }
 ensureCalendarButton();
 
+// Bouton "santé du patrimoine", affiché à gauche du bouton calendrier
+function ensureHealthButton() {
+  if (document.getElementById('map-health-btn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'map-health-btn';
+  btn.className = 'map-toolbar-btn';
+  btn.title = 'Santé du patrimoine';
+  btn.textContent = '🏥';
+  btn.onclick = function () { window.showHealthModal(); };
+  document.body.appendChild(btn);
+}
+ensureHealthButton();
+
+// Bouton "itinéraire multi-structures", affiché à gauche du bouton santé
+function ensureItineraryButton() {
+  if (document.getElementById('map-itinerary-btn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'map-itinerary-btn';
+  btn.className = 'map-toolbar-btn';
+  btn.title = 'Itinéraire entre plusieurs structures';
+  btn.textContent = '🧭';
+  btn.onclick = function () { window.showItineraryModal(); };
+  document.body.appendChild(btn);
+}
+ensureItineraryButton();
+
 // Légende des couleurs de domaines géographiques (bas à gauche)
 function ensureDomaineLegend() {
   if (document.getElementById('domaine-legend')) return;
@@ -1071,6 +1138,269 @@ function classifyMilieuColor(milieu) {
   if (MILIEU_KEYWORDS_ROUGE.some(k => text.includes(k))) return '#c62828';
   return null;
 }
+
+// -------------------------------------------------------------------
+// Couleur associée à une lettre de notation (état structurel / sécurité usager)
+// -------------------------------------------------------------------
+
+const LETTER_GRADE_COLORS = {
+  A: '#1b5e20', // vert foncé
+  B: '#66bb6a', // vert clair
+  C: '#fdd835', // jaune
+  D: '#f57c00', // orange
+  E: '#e53935', // rouge
+  F: '#7f0000'  // rouge foncé
+};
+
+// Détermine la couleur associée à une lettre A-F (renvoie null si ce n'est pas une lettre reconnue)
+function letterGradeColor(value) {
+  const letter = (value || '').toString().trim().toUpperCase();
+  return LETTER_GRADE_COLORS[letter] || null;
+}
+
+// Construit le HTML d'un badge coloré pour une lettre A-F, ou le texte brut si non reconnu
+function letterGradeBadge(value) {
+  const color = letterGradeColor(value);
+  const text = escapeHtml(value);
+  if (!color) return text;
+  const textColor = (value.toString().trim().toUpperCase() === 'C') ? '#3a3000' : '#fff';
+  return '<span class="grade-badge" style="background:' + color + '; color:' + textColor + ';">' + text + '</span>';
+}
+
+// -------------------------------------------------------------------
+// Tableau de bord "Santé du patrimoine"
+// -------------------------------------------------------------------
+
+// Calcule les statistiques de santé à partir du registre (dédupliqué par nom, une structure = une seule fois)
+function computePatrimoineHealthStats() {
+  const seen = new Set();
+  let bon = 0, surveiller = 0, travaux = 0, urgent = 0, nonRenseigne = 0, total = 0;
+
+  window.__structureRegistry.forEach(entry => {
+    const key = normalizeForSearch(entry.nom);
+    if (seen.has(key)) return; // une structure ne doit être comptée qu'une seule fois
+    seen.add(key);
+    total++;
+
+    const letter = (entry.etat || '').toString().trim().toUpperCase();
+    if (letter === 'A' || letter === 'B') bon++;
+    else if (letter === 'C') surveiller++;
+    else if (letter === 'D') travaux++;
+    else if (letter === 'E' || letter === 'F') urgent++;
+    else nonRenseigne++;
+  });
+
+  const totalConnu = bon + surveiller + travaux + urgent;
+  return { bon, surveiller, travaux, urgent, nonRenseigne, total, totalConnu };
+}
+
+function healthBarHtml(label, count, totalConnu, color) {
+  const pct = totalConnu > 0 ? Math.round((count / totalConnu) * 100) : 0;
+  return (
+    '<div class="health-row">' +
+      '<div class="health-row-label">' + escapeHtml(label) + '</div>' +
+      '<div class="health-row-bar-bg"><div class="health-row-bar" style="width:' + pct + '%; background:' + color + ';"></div></div>' +
+      '<div class="health-row-pct">' + pct + '% <span class="health-row-count">(' + count + ')</span></div>' +
+    '</div>'
+  );
+}
+
+window.showHealthModal = function () {
+  window.closePhotoModal();
+
+  const stats = computePatrimoineHealthStats();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal health-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      '<h3>🏥 Santé du patrimoine — Maine-et-Loire</h3>' +
+      '<p class="health-subtitle">' + stats.total + ' ouvrage(s) recensé(s)' +
+        (stats.nonRenseigne > 0 ? ' — dont ' + stats.nonRenseigne + ' sans état renseigné' : '') +
+      '</p>' +
+      '<div class="health-bars">' +
+        healthBarHtml('Bon état (A-B)', stats.bon, stats.totalConnu, '#2e7d32') +
+        healthBarHtml('À surveiller (C)', stats.surveiller, stats.totalConnu, '#fdd835') +
+        healthBarHtml('Travaux nécessaires (D)', stats.travaux, stats.totalConnu, '#f57c00') +
+        healthBarHtml('Intervention urgente (E-F)', stats.urgent, stats.totalConnu, '#c62828') +
+      '</div>' +
+      '<p class="health-note">Pourcentages calculés sur les ' + stats.totalConnu + ' ouvrage(s) ayant un état structurel renseigné (dernière visite). ' +
+      'A/B : bon état — C : à surveiller — D : travaux nécessaires — E/F : intervention urgente.</p>' +
+    '</div>';
+  document.body.appendChild(overlay);
+};
+
+// -------------------------------------------------------------------
+// Itinéraire multi-structures : temps de trajet + ouverture Google Maps / Plans
+// -------------------------------------------------------------------
+
+window.showItineraryModal = function () {
+  window.closePhotoModal();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal itinerary-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      '<h3>🧭 Itinéraire entre plusieurs structures</h3>' +
+      '<label class="itinerary-label">Nombre de structures à visiter</label>' +
+      '<input type="number" id="itinerary-count" class="itinerary-count-input" min="2" max="25" value="2" />' +
+      '<div id="itinerary-inputs"></div>' +
+      '<button class="btn btn-form itinerary-calc-btn" onclick="window.__computeItinerary()">⏱️ Calculer le temps de trajet</button>' +
+      '<div id="itinerary-result"></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  document.getElementById('itinerary-count').addEventListener('input', window.__buildItineraryInputs);
+  window.__buildItineraryInputs();
+};
+
+// (Re)construit les champs de saisie du nom de structure, selon le nombre demandé
+window.__buildItineraryInputs = function () {
+  const countEl = document.getElementById('itinerary-count');
+  const container = document.getElementById('itinerary-inputs');
+  if (!countEl || !container) return;
+
+  let n = parseInt(countEl.value, 10);
+  if (!Number.isFinite(n) || n < 2) n = 2;
+  if (n > 25) n = 25;
+  countEl.value = n;
+
+  // Préserve les valeurs déjà saisies si on change juste le nombre
+  const existingValues = Array.from(container.querySelectorAll('input')).map(i => i.value);
+
+  let html = '';
+  for (let i = 0; i < n; i++) {
+    const val = existingValues[i] || '';
+    html +=
+      '<div class="itinerary-row">' +
+        '<span class="itinerary-row-num">' + (i + 1) + '</span>' +
+        '<input type="text" class="itinerary-structure-input" list="itinerary-structure-list" placeholder="Nom de la structure" value="' + escapeHtml(val) + '" />' +
+      '</div>';
+  }
+  container.innerHTML = html;
+
+  ensureItineraryDatalist();
+};
+
+// Construit/actualise la liste de suggestions (datalist) avec tous les noms de structures
+function ensureItineraryDatalist() {
+  let dl = document.getElementById('itinerary-structure-list');
+  if (!dl) {
+    dl = document.createElement('datalist');
+    dl.id = 'itinerary-structure-list';
+    document.body.appendChild(dl);
+  }
+  const seen = new Set();
+  dl.innerHTML = window.__structureRegistry
+    .filter(e => { const k = normalizeForSearch(e.nom); if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => a.nom.localeCompare(b.nom))
+    .map(e => '<option value="' + escapeHtml(e.nom) + '"></option>')
+    .join('');
+}
+
+function formatDuration(seconds) {
+  const totalMin = Math.round(seconds / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return h + 'h' + (m < 10 ? '0' : '') + m;
+  return m + ' min';
+}
+
+function formatDistanceKm(meters) {
+  return (meters / 1000).toFixed(1) + ' km';
+}
+
+function buildGoogleMapsItineraryUrl(points) {
+  const origin = points[0].latlng.lat + ',' + points[0].latlng.lng;
+  const destination = points[points.length - 1].latlng.lat + ',' + points[points.length - 1].latlng.lng;
+  const waypoints = points.slice(1, -1).map(p => p.latlng.lat + ',' + p.latlng.lng).join('|');
+  let url = 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(origin) + '&destination=' + encodeURIComponent(destination);
+  if (waypoints) url += '&waypoints=' + encodeURIComponent(waypoints);
+  return url;
+}
+
+function buildAppleMapsItineraryUrl(points) {
+  // Apple Plans ne supporte officiellement qu'une origine + une destination via URL.
+  // Le chaînage "+to:" est une astuce non-officielle qui fonctionne dans la plupart des cas
+  // récents de l'app, mais sans garantie totale sur toutes les versions.
+  const saddr = points[0].latlng.lat + ',' + points[0].latlng.lng;
+  const daddr = points.slice(1).map(p => p.latlng.lat + ',' + p.latlng.lng).join('+to:');
+  return 'https://maps.apple.com/?saddr=' + encodeURIComponent(saddr) + '&daddr=' + encodeURIComponent(daddr).replace(/%2Bto%3A/g, '+to:');
+}
+
+window.__computeItinerary = async function () {
+  const resultEl = document.getElementById('itinerary-result');
+  if (!resultEl) return;
+  resultEl.innerHTML = '<p>Calcul en cours…</p>';
+
+  const inputs = Array.from(document.querySelectorAll('.itinerary-structure-input'));
+  const names = inputs.map(i => i.value.trim()).filter(Boolean);
+
+  if (names.length < 2) {
+    resultEl.innerHTML = '<p class="itinerary-error">Merci de renseigner au moins 2 structures.</p>';
+    return;
+  }
+
+  const points = [];
+  const notFound = [];
+  names.forEach(name => {
+    const match = window.__structureRegistry.find(e => normalizeForSearch(e.nom) === normalizeForSearch(name));
+    if (match && match.marker) points.push({ name: match.nom, latlng: match.marker.getLatLng() });
+    else notFound.push(name);
+  });
+
+  if (notFound.length > 0) {
+    resultEl.innerHTML = '<p class="itinerary-error">Structure(s) introuvable(s), vérifiez l\'orthographe : ' + notFound.map(escapeHtml).join(', ') + '</p>';
+    return;
+  }
+
+  let legsHtml = '';
+  let totalDurationSec = 0;
+  let totalDistanceM = 0;
+  let usedFallback = false;
+
+  try {
+    const coordsStr = points.map(p => p.latlng.lng + ',' + p.latlng.lat).join(';');
+    const url = 'https://router.project-osrm.org/route/v1/driving/' + coordsStr + '?overview=false';
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (data.code !== 'Ok' || !data.routes || !data.routes[0]) throw new Error('Réponse OSRM invalide');
+    const route = data.routes[0];
+    totalDurationSec = route.duration;
+    totalDistanceM = route.distance;
+    legsHtml = route.legs.map((leg, i) =>
+      '<div class="itinerary-leg">' + escapeHtml(points[i].name) + ' → ' + escapeHtml(points[i + 1].name) +
+      ' : <b>' + formatDuration(leg.duration) + '</b> (' + formatDistanceKm(leg.distance) + ')</div>'
+    ).join('');
+  } catch (err) {
+    console.warn('Calcul d\'itinéraire routier indisponible, estimation à vol d\'oiseau utilisée :', err);
+    usedFallback = true;
+    const AVG_SPEED_KMH = 60;
+    for (let i = 0; i < points.length - 1; i++) {
+      const d = map.distance(points[i].latlng, points[i + 1].latlng);
+      const durationSec = (d / 1000) / AVG_SPEED_KMH * 3600;
+      totalDurationSec += durationSec;
+      totalDistanceM += d;
+      legsHtml += '<div class="itinerary-leg">' + escapeHtml(points[i].name) + ' → ' + escapeHtml(points[i + 1].name) +
+        ' : ~<b>' + formatDuration(durationSec) + '</b> (' + formatDistanceKm(d) + ')</div>';
+    }
+  }
+
+  resultEl.innerHTML =
+    (usedFallback ? '<p class="itinerary-warning">⚠️ Itinéraire routier indisponible : estimation à vol d\'oiseau (vitesse moyenne 60 km/h).</p>' : '') +
+    '<div class="itinerary-legs">' + legsHtml + '</div>' +
+    '<div class="itinerary-total">Total : <b>' + formatDuration(totalDurationSec) + '</b> — ' + formatDistanceKm(totalDistanceM) + '</div>' +
+    '<div class="itinerary-nav-buttons">' +
+      '<a class="btn btn-maps" href="' + buildGoogleMapsItineraryUrl(points) + '" target="_blank" rel="noopener">🗺️ Ouvrir dans Google Maps</a>' +
+      '<a class="btn btn-maps" href="' + buildAppleMapsItineraryUrl(points) + '" target="_blank" rel="noopener">🍎 Ouvrir dans Plans (Apple Maps)</a>' +
+    '</div>';
+};
 
 window.showGuideModal = function () {
   window.closePhotoModal();
@@ -2478,6 +2808,7 @@ async function drawRecords(records, mappings) {
       const derniereVisite = visits.length > 0 ? visits[0] : null;
       const etat = (derniereVisite && derniereVisite.data.etatStructurel) || '—';
       const securite = (derniereVisite && derniereVisite.data.etatSecurite) || '—';
+      registryEntry.etat = (etat !== '—') ? etat : '';
 
       // Bouton "Voir la/les fiche(s)" : libellé au singulier ou pluriel selon le nombre de visites
       const warningId = 'warn-' + Math.random().toString(36).slice(2);
@@ -2506,6 +2837,9 @@ async function drawRecords(records, mappings) {
         { url: mapped.Photo4Structure || '', desc: mapped.DescriptionPhoto4Structure || '' }
       ];
 
+      const etatHtml = letterGradeBadge(etat);
+      const securiteHtml = letterGradeBadge(securite);
+
       const cardHtml =
         '<div class="structure-card">' +
           '<h3>' + escapeHtml(nom) + '</h3>' +
@@ -2514,8 +2848,8 @@ async function drawRecords(records, mappings) {
           '<div class="row"><b>Domaine :</b> ' + escapeHtml(classifDomaine) + '</div>' +
           '<div class="row"><b>Famille :</b> ' + escapeHtml(classifFamille) + '</div>' +
           '<div class="row"><b>Groupe :</b> ' + escapeHtml(classifGroupe) + '</div>' +
-          '<div class="row"><b>État :</b> ' + escapeHtml(etat) + '</div>' +
-          '<div class="row"><b>Sécurité :</b> ' + escapeHtml(securite) + '</div>' +
+          '<div class="row"><b>État :</b> ' + etatHtml + '</div>' +
+          '<div class="row"><b>Sécurité :</b> ' + securiteHtml + '</div>' +
           '<div class="buttons">' +
             btnFiche +
             (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
