@@ -1407,19 +1407,36 @@ window.showGuideModal = function () {
 
   const guideHtml =
     '<h2 style="margin-top:0;">Guide d\'utilisation — Carte interactive</h2>' +
-    '<p style="font-style:italic;color:#666;">Carte interactive développée par l\'agence d\'Angers du Cerema</p>' +
+    '<p class="guide-subtitle">Carte interactive développée par l\'agence d\'Angers du Cerema</p>' +
 
     '<h3>Présentation générale</h3>' +
-    '<p>Cette carte permet de visualiser deux types d\'éléments : les <b>domaines/parcs</b> (polygones colorés délimitant leur emprise géographique) et les <b>structures</b> (ouvrages), représentées par des pins rouges par défaut, ou par une photo personnalisée si elle a été renseignée.</p>' +
+    '<p>La carte affiche deux types d\'éléments : les <b>domaines/parcs</b> (polygones colorés délimitant leur emprise géographique) et les <b>structures (ouvrages)</b>, représentées par des pins rouges par défaut, ou par une photo personnalisée si elle a été renseignée (par exemple l\'image d\'un pont).</p>' +
 
-    '<h3>Consulter les informations d\'un domaine</h3>' +
-    '<p>Survoler un polygone de domaine affiche un encadré avec son nom, son estimation de superficie (ha), sa ou ses protection(s), et un bouton 📷 Photo pour voir une photo illustrative avec sa description.</p>' +
+    '<h3>Consulter un domaine</h3>' +
+    '<p>Survolez un polygone pour afficher un encadré indiquant son nom, son estimation de superficie (ha), sa ou ses protection(s), et un bouton 📷 Photo pour voir une image illustrative avec sa description.</p>' +
 
-    '<h3>Consulter les informations d\'une structure</h3>' +
-    '<p>Survoler un pin affiche un encadré avec : le nom et le numéro de la structure (ligne Grist), son domaine géographique (détecté automatiquement si elle est dans un polygone, sinon valeur manuelle), sa classification Domaine/Famille/Groupe, son état structurel et son état de sécurité usager.</p>' +
-    '<p>L\'encadré reste ouvert tant que la souris est dessus, et se referme 1 seconde après que la souris le quitte réellement.</p>' +
+    '<h3>Consulter une structure</h3>' +
+    '<p>Survolez un pin pour afficher un encadré complet :</p>' +
+    '<ul>' +
+      '<li>Le nom de la structure, avec son numéro affiché en gris juste en dessous (« Structure n°X »)</li>' +
+      '<li>Son <b>domaine géographique</b> (détecté automatiquement si elle se trouve dans un polygone, sinon repli manuel)</li>' +
+      '<li>Sa classification <b>Domaine / Famille / Groupe</b>, utilisée pour la recherche</li>' +
+      '<li>Son <b>état structurel</b> et son <b>état de sécurité usager</b> (lettre A à F, colorée — voir ci-dessous), provenant de la fiche de la visite la plus récente</li>' +
+    '</ul>' +
+    '<div style="background:#f4f7fa;border:1px solid #e0e6eb;border-radius:10px;padding:10px 14px;margin:10px 0;border-left:4px solid #1565c0;">' +
+      '<p style="margin:0;">L\'encadré reste ouvert tant que la souris est dessus (ou en mouvement dessus), et se referme automatiquement <b>1 seconde</b> après l\'avoir quitté — largement de quoi cliquer un bouton sans qu\'il disparaisse.</p>' +
+    '</div>' +
 
-    '<h3>Les boutons de l\'encadré structure</h3>' +
+    '<h3>Code couleur des états (A → F)</h3>' +
+    '<p>L\'état structurel et l\'état de sécurité usager sont affichés sous forme de badge coloré selon leur lettre :</p>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#1b5e20;">A</span><span style="font-size:13px;color:#333;">Bon état</span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#66bb6a;">B</span><span style="font-size:13px;color:#333;">Bon état</span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#3a3000;font-weight:700;font-size:12px;flex-shrink:0;background:#fdd835;">C</span><span style="font-size:13px;color:#333;">À surveiller</span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#f57c00;">D</span><span style="font-size:13px;color:#333;">Travaux nécessaires</span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#e53935;">E</span><span style="font-size:13px;color:#333;">Intervention urgente</span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#7f0000;">F</span><span style="font-size:13px;color:#333;">Intervention urgente</span></div>' +
+
+    '<h3>Boutons de l\'encadré structure</h3>' +
     '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
       '<tr style="background:#f5f5f5;"><th style="text-align:left;padding:6px;border:1px solid #ddd;">Bouton</th><th style="text-align:left;padding:6px;border:1px solid #ddd;">Fonction</th></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📄 Voir la/les fiche(s) visite(s)</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la ou les fiches de visite (onglets si plusieurs, triées de la plus récente à la plus ancienne). Message si aucune visite.</td></tr>' +
@@ -1428,28 +1445,92 @@ window.showGuideModal = function () {
       '<tr><td style="padding:6px;border:1px solid #ddd;">📷 Photo(s) initial de la structure</td><td style="padding:6px;border:1px solid #ddd;">Affiche jusqu\'à 4 photos de référence avec description.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à toutes les structures.</td></tr>' +
     '</table>' +
-    '<p>Chaque fiche de visite présente : inspecteur(s), date, nom complet de la structure, description (tiret si vide), état structurel, état sécurité usager, et jusqu\'à 5 photos avec description.</p>' +
+
+    '<h3>Fiches de visite &amp; export PDF</h3>' +
+    '<p>Chaque fiche affiche : inspecteur(s), date de la visite, nom complet de la structure, description (tiret si vide), état structurel, état de sécurité usager, et jusqu\'à 5 photos avec leur description.</p>' +
+    '<p>Si plusieurs visites existent pour une même structure, elles apparaissent sous forme d\'onglets classés du plus récent au plus ancien.</p>' +
+    '<div style="background:#f4f7fa;border:1px solid #e0e6eb;border-radius:10px;padding:10px 14px;margin:10px 0;border-left:4px solid #1565c0;">' +
+      '<p style="margin:0;"><b>🖨️ Exporter en PDF</b> : en bas de chaque fiche, ce bouton génère un document propre et autonome (en-tête, tableau d\'informations, description, photos en grille) prêt à imprimer ou enregistrer en PDF — indépendant de la fenêtre à l\'écran.</p>' +
+    '</div>' +
 
     '<h3>Copier des coordonnées GPS</h3>' +
-    '<p>Un simple clic n\'importe où sur la carte (pin, domaine, ou zone vide) copie les coordonnées GPS de l\'endroit cliqué dans le presse-papier, avec confirmation visuelle en bas de l\'écran.</p>' +
+    '<p>Un simple clic n\'importe où sur la carte — pin, domaine, ou zone vide — copie automatiquement les coordonnées GPS de cet endroit dans le presse-papier, avec un message de confirmation en bas de l\'écran.</p>' +
 
     '<h3>Rechercher une structure</h3>' +
-    '<p>Le panneau « Rechercher une ou des structures » (en haut à droite) propose :</p>' +
-    '<ul>' +
+    '<p>Le panneau en haut à droite « Rechercher une ou des structures » propose deux méthodes :</p>' +
+    '<ol>' +
       '<li><b>Recherche par nom</b> : tapez un nom, la carte se recentre automatiquement.</li>' +
-      '<li><b>Navigation par catégorie</b> : cliquez sur la flèche (▾) pour dérouler l\'arborescence <b>Domaine → Famille → Groupe → Structure</b>. Une famille peut apparaître sous plusieurs domaines. Cliquer sur une structure (📍) recentre la carte dessus et ouvre son encadré.</li>' +
-    '</ul>' +
-    '<p>Si aucune structure n\'est associée à la sélection, le message <i>« Aucune structure n\'est associée aux paramètres sélectionnés »</i> apparaît.</p>' +
+      '<li><b>Navigation par catégorie</b> : cliquez sur la flèche (▾) pour dérouler l\'arborescence <b>Domaine → Famille → Groupe → Structure</b>. Une famille peut apparaître sous plusieurs domaines si elle leur appartient à tous. Cliquer sur une structure (📍) recentre la carte sur son emplacement et ouvre son encadré.</li>' +
+    '</ol>' +
+    '<p>Si aucune structure n\'est associée à la sélection, le message <i>« Aucune structure n\'est associée aux paramètres sélectionnés »</i> s\'affiche.</p>' +
 
-    '<h3>Points importants</h3>' +
+    '<h3>Barre d\'outils (haut à droite)</h3>' +
+    '<p>Une rangée d\'icônes est disponible juste à gauche du panneau de recherche :</p>' +
     '<ul>' +
-      '<li>Les polygones de domaine restent toujours visibles ; seule la recherche filtre les structures.</li>' +
-      '<li>Une structure avec plusieurs visites n\'apparaît qu\'une seule fois sur la carte et dans la recherche.</li>' +
-      '<li>Les photos peuvent être ajoutées via un lien internet ou en pièce jointe Grist.</li>' +
+      '<li>🧭 Itinéraire multi-structures</li>' +
+      '<li>🏥 Santé du patrimoine</li>' +
+      '<li>📅 Calendrier des visites</li>' +
+      '<li>📏 Mesurer une distance</li>' +
+      '<li>🛰️ Vue satellite</li>' +
+      '<li>ℹ️ Guide d\'utilisation</li>' +
     '</ul>' +
+
+    '<h3>Vue satellite</h3>' +
+    '<p>Bascule la carte entre le fond de plan classique (OpenStreetMap) et une vue satellite. Cliquez à nouveau pour revenir à la vue normale.</p>' +
+
+    '<h3>Mesurer une distance</h3>' +
+    '<ol>' +
+      '<li>Cliquez sur le bouton (il devient bleu = actif).</li>' +
+      '<li>1er clic sur la carte : point de départ.</li>' +
+      '<li>Déplacez la souris : une ligne pointillée rouge et la distance en temps réel apparaissent.</li>' +
+      '<li>2e clic : la mesure est figée. Un nouveau clic démarre une nouvelle mesure.</li>' +
+      '<li>Recliquez sur le bouton pour désactiver le mode (et effacer la mesure).</li>' +
+    '</ol>' +
+
+    '<h3>Calendrier des visites prévues</h3>' +
+    '<p>Ce bouton ouvre une fenêtre permettant de :</p>' +
+    '<ul>' +
+      '<li><b>Planifier une visite</b> : tapez ou choisissez un nom de structure (suggestions automatiques), choisissez une date, puis cliquez sur « Planifier ».</li>' +
+      '<li><b>Consulter les visites à venir</b>, regroupées par jour, avec un lien direct vers chaque structure sur la carte.</li>' +
+      '<li><b>Annuler</b> une visite prévue via le bouton ✕ à côté de son nom.</li>' +
+    '</ul>' +
+
+    '<h3>Santé du patrimoine</h3>' +
+    '<p>Ce tableau de bord recense l\'ensemble des ouvrages et calcule automatiquement, à partir de la lettre d\'état structurel de leur dernière visite :</p>' +
+    '<ul>' +
+      '<li><b>Bon état</b> (A/B)</li>' +
+      '<li><b>À surveiller</b> (C)</li>' +
+      '<li><b>Travaux nécessaires</b> (D)</li>' +
+      '<li><b>Intervention urgente</b> (E/F)</li>' +
+    '</ul>' +
+    '<p>Chaque catégorie est représentée par une barre de progression avec son pourcentage et son nombre d\'ouvrages. Les structures sans état renseigné sont indiquées séparément et exclues du calcul des pourcentages.</p>' +
+
+    '<h3>Itinéraire multi-structures</h3>' +
+    '<p>Pour organiser une tournée de plusieurs visites :</p>' +
+    '<ol>' +
+      '<li>Indiquez le nombre de structures à visiter.</li>' +
+      '<li>Renseignez le nom de chaque structure (suggestions automatiques).</li>' +
+      '<li>Cliquez sur « Calculer le temps de trajet » : le temps et la distance entre chaque étape (puis le total) s\'affichent.</li>' +
+      '<li>Ouvrez directement l\'itinéraire dans Google Maps ou Plans (Apple Maps) via les boutons dédiés.</li>' +
+    '</ol>' +
+    '<div style="background:#fff8f0;border:1px solid #e0e6eb;border-radius:10px;padding:10px 14px;margin:10px 0;border-left:4px solid #e65100;">' +
+      '<p style="margin:0;"><b>À savoir :</b> le calcul utilise un service de calcul d\'itinéraire routier ; en cas d\'indisponibilité, une estimation à vol d\'oiseau (60 km/h) est utilisée à la place, clairement signalée. L\'ouverture dans Plans (Apple Maps) avec plusieurs étapes intermédiaires n\'est pas garantie sur toutes les versions de l\'application.</p>' +
+    '</div>' +
+
+    '<h3>Légende des domaines (bas à gauche de la carte)</h3>' +
+    '<p>La couleur d\'un domaine est déterminée automatiquement à partir du type de milieu qu\'il décrit :</p>' +
+    '<div style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;"><span style="width:16px;height:16px;border-radius:4px;flex-shrink:0;margin-top:2px;background:#1565c0;display:inline-block;"></span><span style="font-size:13px;color:#333;">Étangs / lacs / marais / tourbières / vallées humides</span></div>' +
+    '<div style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;"><span style="width:16px;height:16px;border-radius:4px;flex-shrink:0;margin-top:2px;background:#2e7d32;display:inline-block;"></span><span style="font-size:13px;color:#333;">Forêts / bois / landes / prairies / bocages / pelouses / plaines</span></div>' +
+    '<div style="display:flex;align-items:flex-start;gap:8px;margin:6px 0;"><span style="width:16px;height:16px;border-radius:4px;flex-shrink:0;margin-top:2px;background:#c62828;display:inline-block;"></span><span style="font-size:13px;color:#333;">Coteaux / carrières / sites rocheux / anciens sites miniers</span></div>' +
+    '<p style="margin-top:8px;">Une couleur manuelle peut toujours être forcée si besoin, auquel cas elle est prioritaire sur la détection automatique.</p>' +
 
     '<h3>En cas de problème</h3>' +
-    '<p>Vérifiez en priorité le mapping des colonnes dans les paramètres du widget Grist, ainsi que le contenu des cellules concernées.</p>';
+    '<p>Si une information ne s\'affiche pas correctement (photo manquante, mauvaise famille/groupe, structure introuvable, itinéraire non calculé), vérifiez en priorité :</p>' +
+    '<ul>' +
+      '<li>Le <b>mapping des colonnes</b> dans les paramètres du widget Grist</li>' +
+      '<li>Le contenu exact des cellules concernées dans le tableau source</li>' +
+      '<li>Que le nom saisi correspond exactement à celui affiché sur la carte (recherche/calendrier/itinéraire)</li>' +
+    '</ul>';
 
   const overlay = document.createElement('div');
   overlay.className = 'photo-modal-overlay';
