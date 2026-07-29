@@ -1765,15 +1765,30 @@ function buildCalendarPrintHtml(year, month) {
 
 // Déclenche l'export PDF du mois actuellement affiché dans le calendrier.
 window.__exportCalendarPDF = function () {
-  const viewDate = window.__calendarViewDate;
-  if (!viewDate) return;
+  try {
+    const viewDate = window.__calendarViewDate;
+    if (!viewDate) {
+      console.warn('Export PDF planning : aucun mois affiché (window.__calendarViewDate manquant).');
+      showCoordToast('⚠️ Ouvrez le calendrier avant d\'exporter');
+      return;
+    }
 
-  const container = document.getElementById('pdf-export-container');
-  if (!container) return;
+    const container = document.getElementById('pdf-export-container');
+    if (!container) {
+      console.error('Export PDF planning : #pdf-export-container introuvable dans le DOM.');
+      showCoordToast('⚠️ Erreur : conteneur d\'export introuvable');
+      return;
+    }
 
-  container.innerHTML = buildCalendarPrintHtml(viewDate.getFullYear(), viewDate.getMonth());
+    const html = buildCalendarPrintHtml(viewDate.getFullYear(), viewDate.getMonth());
+    container.innerHTML = html;
+    console.log('Export PDF planning : contenu généré (' + html.length + ' caractères) pour ' + CALENDAR_MONTHS[viewDate.getMonth()] + ' ' + viewDate.getFullYear() + '.');
 
-  window.print();
+    window.print();
+  } catch (err) {
+    console.error('Erreur lors de l\'export PDF du planning :', err);
+    showCoordToast('⚠️ Échec de l\'export PDF (voir la console)');
+  }
 };
 
 // ---- Boîte de dialogue "Ajouter une visite" : menu déroulant + zone de recherche texte ----
