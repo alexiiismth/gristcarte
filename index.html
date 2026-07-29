@@ -1647,9 +1647,18 @@ window.__calendarAddOptions = [];
 window.__openCalendarAddDialog = function (dateKey) {
   window.__calendarAddDate = dateKey;
 
-  // Liste des structures disponibles (issues des données Grist déjà chargées sur la carte), triée par nom
+  // Liste des structures disponibles (issues des données Grist déjà chargées sur la carte),
+  // dédupliquée par nom (insensible à la casse/espaces) pour qu'une structure n'apparaisse qu'une seule fois,
+  // puis triée par nom
+  const seenNames = new Set();
   window.__calendarAddOptions = (window.__structureRegistry || [])
     .filter(function (e) { return e.nom; })
+    .filter(function (e) {
+      const key = normalizeForSearch(e.nom);
+      if (seenNames.has(key)) return false;
+      seenNames.add(key);
+      return true;
+    })
     .map(function (e) { return { rowId: e.rowId, nom: e.nom }; })
     .sort(function (a, b) { return a.nom.localeCompare(b.nom, 'fr'); });
 
