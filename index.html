@@ -1293,8 +1293,24 @@ window.exportFicheToPdf = async function () {
     '</div>' +
     '<div class="pdf-footer">Carte interactive développée par l\'agence d\'Angers du Cerema</div>';
 
+  // Attend que toutes les images soient réellement chargées (sinon l'impression peut se déclencher
+  // avant qu'elles n'apparaissent, donnant des cases vides dans le PDF)
+  await waitForImagesToLoad(container);
+
   window.print();
 };
+
+// Attend que toutes les <img> d'un conteneur aient fini de charger (ou aient échoué), avant de continuer
+function waitForImagesToLoad(container) {
+  const imgs = Array.from(container.querySelectorAll('img'));
+  return Promise.all(imgs.map(img => {
+    if (img.complete) return Promise.resolve();
+    return new Promise(resolve => {
+      img.addEventListener('load', resolve, { once: true });
+      img.addEventListener('error', resolve, { once: true });
+    });
+  }));
+}
 
 // Construit le HTML des photos pour l'export PDF (ignore silencieusement les emplacements vides)
 async function buildPdfPhotosHtml(photos) {
