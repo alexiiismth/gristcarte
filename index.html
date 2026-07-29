@@ -513,25 +513,15 @@
   }
   .calendar-add-actions .btn { flex: 1; }
 
-  /* ---- Zone imprimable pour l'export PDF du planning (invisible à l'écran) ---- */
-  .calendar-print-area { display: none; }
-  .calendar-print-area .print-title {
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: 14px;
-    text-transform: capitalize;
-    color: #1a1a1a;
-  }
-  .calendar-print-area .print-weekdays {
+  /* ---- Grille imprimable du planning mensuel (rendue dans le conteneur d'export PDF existant) ---- */
+  .pdf-calendar-weekdays {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
     margin-bottom: 4px;
   }
-  .calendar-print-area .print-weekday {
+  .pdf-calendar-weekday {
     text-align: center;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
@@ -539,21 +529,21 @@
     border-bottom: 1px solid #ccc;
     padding-bottom: 4px;
   }
-  .calendar-print-area .print-grid {
+  .pdf-calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
   }
-  .calendar-print-area .print-day {
+  .pdf-calendar-day {
     border: 1px solid #ccc;
     min-height: 90px;
     padding: 4px;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     break-inside: avoid;
+    page-break-inside: avoid;
   }
-  .calendar-print-area .print-day.other-month { background: #f5f5f5; color: #aaa; }
-  .calendar-print-area .print-day-num { font-weight: 700; font-size: 12px; margin-bottom: 3px; }
-  .calendar-print-area .print-visit {
+  .pdf-calendar-day.other-month { background: #f5f5f5; color: #aaa; }
+  .pdf-calendar-day-num { font-weight: 700; font-size: 12px; margin-bottom: 3px; }
+  .pdf-calendar-visit {
     font-size: 10px;
     padding: 1px 3px;
     background: #e8f0fe;
@@ -561,12 +551,6 @@
     margin-bottom: 2px;
     color: #1a3d7c;
     word-break: break-word;
-  }
-
-  @media print {
-    body.printing-calendar-mode > *:not(.calendar-print-area) { display: none !important; }
-    body.printing-calendar-mode .calendar-print-area { display: block !important; }
-    @page { size: landscape; margin: 12mm; }
   }
 
   .domaine-legend {
@@ -1740,6 +1724,8 @@ function renderCalendarMonth() {
 }
 
 // ---- Export du planning du mois affiché en PDF (via la boîte de dialogue d'impression du navigateur) ----
+// Réutilise le même conteneur #pdf-export-container que l'export de fiche de visite, pour bénéficier
+// du même mécanisme d'impression déjà en place (masquage du reste de la page, mise en page A4/print).
 
 // Construit le HTML de la grille imprimable pour un mois donné, à partir de la même
 // planification (window.__visitPlanning) que celle affichée à l'écran.
@@ -1756,48 +1742,39 @@ function buildCalendarPrintHtml(year, month) {
     const visits = window.__visitPlanning[key] || [];
 
     const visitsHtml = visits.map(function (v) {
-      return '<div class="print-visit">' + escapeHtml(v.nom) + '</div>';
+      return '<div class="pdf-calendar-visit">' + escapeHtml(v.nom) + '</div>';
     }).join('');
 
     cellsHtml +=
-      '<div class="print-day' + (isOtherMonth ? ' other-month' : '') + '">' +
-        '<div class="print-day-num">' + cellDate.getDate() + '</div>' +
+      '<div class="pdf-calendar-day' + (isOtherMonth ? ' other-month' : '') + '">' +
+        '<div class="pdf-calendar-day-num">' + cellDate.getDate() + '</div>' +
         visitsHtml +
       '</div>';
   }
 
   return (
-    '<div class="print-title">Planning des visites — ' + CALENDAR_MONTHS[month] + ' ' + year + '</div>' +
-    '<div class="print-weekdays">' + CALENDAR_WEEKDAYS.map(function (w) { return '<div class="print-weekday">' + w + '</div>'; }).join('') + '</div>' +
-    '<div class="print-grid">' + cellsHtml + '</div>'
+    '<div class="pdf-header">' +
+      '<h1>🗓️ Planning des visites</h1>' +
+      '<div class="pdf-header-sub">' + CALENDAR_MONTHS[month] + ' ' + year + '</div>' +
+    '</div>' +
+    '<div class="pdf-calendar-weekdays">' + CALENDAR_WEEKDAYS.map(function (w) { return '<div class="pdf-calendar-weekday">' + w + '</div>'; }).join('') + '</div>' +
+    '<div class="pdf-calendar-grid">' + cellsHtml + '</div>' +
+    '<div class="pdf-footer">Carte interactive développée par l\'agence d\'Angers du Cerema</div>'
   );
 }
 
-// Déclenche l'export PDF du mois actuellement affiché dans le calendrier : construit une zone
-// imprimable dédiée, masque le reste de la page (carte, boutons, modales) pendant l'impression,
-// puis ouvre la boîte de dialogue d'impression du navigateur (l'utilisateur choisit "Enregistrer en PDF").
+// Déclenche l'export PDF du mois actuellement affiché dans le calendrier.
 window.__exportCalendarPDF = function () {
   const viewDate = window.__calendarViewDate;
   if (!viewDate) return;
 
-  let printArea = document.getElementById('calendar-print-area');
-  if (!printArea) {
-    printArea = document.createElement('div');
-    printArea.id = 'calendar-print-area';
-    printArea.className = 'calendar-print-area';
-    document.body.appendChild(printArea);
-  }
-  printArea.innerHTML = buildCalendarPrintHtml(viewDate.getFullYear(), viewDate.getMonth());
+  const container = document.getElementById('pdf-export-container');
+  if (!container) return;
 
-  document.body.classList.add('printing-calendar-mode');
+  container.innerHTML = buildCalendarPrintHtml(viewDate.getFullYear(), viewDate.getMonth());
+
   window.print();
 };
-
-// Une fois la boîte de dialogue d'impression fermée (imprimé, annulé ou enregistré en PDF),
-// on retire le mode impression pour retrouver l'affichage normal de la carte.
-window.addEventListener('afterprint', function () {
-  document.body.classList.remove('printing-calendar-mode');
-});
 
 // ---- Boîte de dialogue "Ajouter une visite" : menu déroulant + zone de recherche texte ----
 
