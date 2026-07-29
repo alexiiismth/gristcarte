@@ -369,20 +369,110 @@
     background: #37474f;
   }
 
+  /* Conteneur d'export PDF : invisible à l'écran, rempli et affiché uniquement au moment de l'impression */
+  #pdf-export-container { display: none; }
+
   @media print {
     body * { visibility: hidden; }
-    .photo-modal-overlay, .photo-modal-overlay * { visibility: visible; }
-    .photo-modal-overlay {
+    #pdf-export-container, #pdf-export-container * { visibility: visible; }
+    #pdf-export-container {
+      display: block;
       position: absolute;
       inset: 0;
-      background: #fff;
+      padding: 28px 32px;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    .photo-modal {
-      box-shadow: none;
-      max-height: none;
-      overflow: visible;
-    }
-    .close-btn, .fiche-pdf-btn, .fiche-tabs { display: none !important; }
+    .photo-modal-overlay { display: none !important; }
+  }
+
+  .pdf-header {
+    border-bottom: 3px solid #1565c0;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+  }
+  .pdf-header h1 {
+    margin: 0;
+    font-size: 24px;
+    color: #1565c0;
+  }
+  .pdf-header .pdf-header-sub {
+    font-size: 15px;
+    color: #333;
+    margin-top: 4px;
+  }
+  .pdf-info-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+  .pdf-info-table th {
+    text-align: left;
+    background: #eef3f8;
+    padding: 8px 10px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #555;
+    width: 20%;
+    border: 1px solid #dde3e8;
+  }
+  .pdf-info-table td {
+    padding: 8px 10px;
+    font-size: 14px;
+    color: #111;
+    width: 30%;
+    border: 1px solid #dde3e8;
+  }
+  .pdf-section h3 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #1565c0;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 5px;
+    margin: 22px 0 10px 0;
+  }
+  .pdf-section p {
+    font-size: 13px;
+    line-height: 1.55;
+    color: #222;
+    white-space: pre-wrap;
+  }
+  .pdf-photo-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .pdf-photo-item {
+    width: calc(50% - 8px);
+    page-break-inside: avoid;
+    text-align: center;
+  }
+  .pdf-photo-item img {
+    width: 100%;
+    height: 230px;
+    object-fit: contain;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fafafa;
+  }
+  .pdf-photo-desc {
+    font-size: 11px;
+    color: #555;
+    margin-top: 5px;
+  }
+  .pdf-no-photo {
+    font-size: 12px;
+    color: #888;
+    font-style: italic;
+  }
+  .pdf-footer {
+    margin-top: 26px;
+    font-size: 10px;
+    color: #999;
+    text-align: center;
+    border-top: 1px solid #ddd;
+    padding-top: 8px;
   }
   .info-guide-btn {
     position: fixed;
@@ -500,6 +590,7 @@
 </head>
 <body>
 <div id="map"></div>
+<div id="pdf-export-container"></div>
 
 <script>
 // -------------------------------------------------------------------
@@ -1110,9 +1201,12 @@ window.showFicheModal = async function (storeId) {
       '<h3>📄 ' + (showTabs ? 'Fiches visites' : 'Fiche visite') + '</h3>' +
       tabsHtml +
       '<div id="fiche-content-area"><p>Chargement…</p></div>' +
-      '<button class="btn btn-form fiche-pdf-btn" onclick="window.print()">🖨️ Exporter en PDF</button>' +
+      '<button class="btn btn-form fiche-pdf-btn" onclick="window.exportFicheToPdf()">🖨️ Exporter en PDF</button>' +
     '</div>';
   document.body.appendChild(overlay);
+
+  window.__activeFicheStoreId = storeId;
+  window.__activeFicheVisitIdx = 0;
 
   await window.__ficheRenderTab(storeId, 0);
 };
@@ -1153,8 +1247,74 @@ window.__ficheSwitchTab = function (storeId, idx, btnEl) {
     overlay.querySelectorAll('.fiche-tab').forEach(btn => btn.classList.remove('active'));
     if (btnEl) btnEl.classList.add('active');
   }
+  window.__activeFicheVisitIdx = idx;
   window.__ficheRenderTab(storeId, idx);
 };
+
+// Construit une belle fiche imprimable (indépendante de la fenêtre interactive) et lance l'impression/export PDF
+window.exportFicheToPdf = async function () {
+  const storeId = window.__activeFicheStoreId;
+  const idx = window.__activeFicheVisitIdx || 0;
+  const group = window.__ficheStore[storeId];
+  if (!group) return;
+  const visit = group.visits[idx];
+  if (!visit) return;
+
+  const container = document.getElementById('pdf-export-container');
+  if (!container) return;
+
+  // Affiche d'abord un état "chargement" (au cas où la résolution des photos prendrait un instant)
+  container.innerHTML = '<p>Préparation du document…</p>';
+
+  const photosHtml = await buildPdfPhotosHtml(visit.data.photos);
+
+  container.innerHTML =
+    '<div class="pdf-header">' +
+      '<h1>📄 Fiche de visite</h1>' +
+      '<div class="pdf-header-sub">' + escapeHtml(visit.data.nomComplet || '—') + '</div>' +
+    '</div>' +
+    '<table class="pdf-info-table">' +
+      '<tr>' +
+        '<th>Inspecteur(s)</th><td>' + escapeHtml(visit.data.inspecteurs || '—') + '</td>' +
+        '<th>Date de la visite</th><td>' + escapeHtml(visit.data.date || '—') + '</td>' +
+      '</tr>' +
+      '<tr>' +
+        '<th>État structurel</th><td>' + escapeHtml(visit.data.etatStructurel || '—') + '</td>' +
+        '<th>État sécurité usager</th><td>' + escapeHtml(visit.data.etatSecurite || '—') + '</td>' +
+      '</tr>' +
+    '</table>' +
+    '<div class="pdf-section">' +
+      '<h3>Description</h3>' +
+      '<p>' + escapeHtml(visit.data.description || '—') + '</p>' +
+    '</div>' +
+    '<div class="pdf-section">' +
+      '<h3>Photos</h3>' +
+      '<div class="pdf-photo-grid">' + photosHtml + '</div>' +
+    '</div>' +
+    '<div class="pdf-footer">Carte interactive développée par l\'agence d\'Angers du Cerema</div>';
+
+  window.print();
+};
+
+// Construit le HTML des photos pour l'export PDF (ignore silencieusement les emplacements vides)
+async function buildPdfPhotosHtml(photos) {
+  let tokenInfo = null;
+  try {
+    tokenInfo = await getFreshAccessToken();
+  } catch (e) {
+    console.error('Impossible de récupérer le jeton d\'accès Grist pour les pièces jointes :', e);
+  }
+
+  const nonEmpty = (photos || []).filter(p => Array.isArray(p.url) ? p.url.length > 0 : !!p.url);
+  if (nonEmpty.length === 0) return '<p class="pdf-no-photo">Aucune photo disponible.</p>';
+
+  return nonEmpty.map(p => {
+    const src = resolveImageValue(p.url, tokenInfo);
+    const img = src ? '<img src="' + escapeHtml(src) + '" alt="photo" />' : '';
+    const desc = p.desc ? '<div class="pdf-photo-desc">' + escapeHtml(p.desc) + '</div>' : '';
+    return '<div class="pdf-photo-item">' + img + desc + '</div>';
+  }).join('');
+}
 
 // Échappe une chaîne pour l'insérer en toute sécurité comme littéral JS entre apostrophes,
 // utilisé dans les attributs onclick="..." (qui eux sont entre guillemets doubles)
