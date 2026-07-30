@@ -188,6 +188,23 @@
   .health-note { font-size: 11px; color: #888; margin-top: 16px; line-height: 1.4; }
 
   .itinerary-modal { min-width: 340px; max-width: 420px; }
+  .weather-modal { min-width: 320px; max-width: 400px; }
+  .weather-label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; }
+  .weather-input {
+    width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #ccc;
+    border-radius: 6px; font-size: 14px; margin-bottom: 12px;
+  }
+  .weather-error { color: #c62828; font-size: 12px; }
+  .weather-card {
+    display: flex; align-items: center; gap: 14px; margin-top: 8px;
+    background: #f4f7fa; border: 1px solid #e0e6eb; border-radius: 10px; padding: 14px;
+  }
+  .weather-card-icon { font-size: 42px; line-height: 1; }
+  .weather-card-name { font-size: 14px; font-weight: 600; color: #111; }
+  .weather-card-date { font-size: 12px; color: #666; margin-bottom: 4px; }
+  .weather-card-desc { font-size: 13px; color: #333; }
+  .weather-card-temps { font-size: 13px; color: #333; margin-top: 4px; }
+  .weather-card-extra { font-size: 12px; color: #666; margin-top: 4px; }
   .itinerary-label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; }
   .itinerary-count-input {
     width: 70px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; margin-bottom: 10px;
@@ -352,6 +369,7 @@
   #map-calendar-btn { right: 444px; }
   #map-health-btn { right: 492px; }
   #map-itinerary-btn { right: 540px; }
+  #map-weather-btn { right: 588px; }
 
   .measure-label-icon {
     background: transparent;
@@ -1102,6 +1120,19 @@ function ensureItineraryButton() {
 }
 ensureItineraryButton();
 
+// Bouton "météo d'une structure", affiché à gauche du bouton itinéraire
+function ensureWeatherButton() {
+  if (document.getElementById('map-weather-btn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'map-weather-btn';
+  btn.className = 'map-toolbar-btn';
+  btn.title = 'Météo à une structure';
+  btn.textContent = '🌦️';
+  btn.onclick = function () { window.showWeatherModal(); };
+  document.body.appendChild(btn);
+}
+ensureWeatherButton();
+
 // Légende des couleurs de domaines géographiques (bas à gauche)
 function ensureDomaineLegend() {
   if (document.getElementById('domaine-legend')) return;
@@ -1402,6 +1433,156 @@ window.__computeItinerary = async function () {
     '</div>';
 };
 
+// -------------------------------------------------------------------
+// Météo à une structure, pour un jour donné (passé, aujourd'hui ou à venir)
+// -------------------------------------------------------------------
+
+window.showWeatherModal = function () {
+  window.closePhotoModal();
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal weather-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      '<h3>🌦️ Météo à une structure</h3>' +
+      '<label class="weather-label">Structure</label>' +
+      '<input type="text" id="weather-structure-input" class="weather-input" list="weather-structure-list" placeholder="Nom de la structure" autocomplete="off" />' +
+      '<label class="weather-label">Jour</label>' +
+      '<input type="date" id="weather-date-input" class="weather-input" value="' + today + '" />' +
+      '<button class="btn btn-form" onclick="window.__computeWeather()">🔎 Voir la météo</button>' +
+      '<div id="weather-result"></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  ensureWeatherDatalist();
+};
+
+// Construit/actualise la liste de suggestions (datalist) avec tous les noms de structures
+function ensureWeatherDatalist() {
+  let dl = document.getElementById('weather-structure-list');
+  if (!dl) {
+    dl = document.createElement('datalist');
+    dl.id = 'weather-structure-list';
+    document.body.appendChild(dl);
+  }
+  const seen = new Set();
+  dl.innerHTML = window.__structureRegistry
+    .filter(e => { const k = normalizeForSearch(e.nom); if (seen.has(k)) return false; seen.add(k); return true; })
+    .sort((a, b) => a.nom.localeCompare(b.nom))
+    .map(e => '<option value="' + escapeHtml(e.nom) + '"></option>')
+    .join('');
+}
+
+// Traduit un code météo WMO (utilisé par Open-Meteo) en libellé + icône
+function describeWeatherCode(code) {
+  const table = {
+    0: ['☀️', 'Ciel dégagé'],
+    1: ['🌤️', 'Plutôt dégagé'],
+    2: ['⛅', 'Partiellement nuageux'],
+    3: ['☁️', 'Couvert'],
+    45: ['🌫️', 'Brouillard'],
+    48: ['🌫️', 'Brouillard givrant'],
+    51: ['🌦️', 'Bruine légère'],
+    53: ['🌦️', 'Bruine modérée'],
+    55: ['🌦️', 'Bruine forte'],
+    56: ['🌦️', 'Bruine verglaçante légère'],
+    57: ['🌦️', 'Bruine verglaçante forte'],
+    61: ['🌧️', 'Pluie légère'],
+    63: ['🌧️', 'Pluie modérée'],
+    65: ['🌧️', 'Pluie forte'],
+    66: ['🌧️', 'Pluie verglaçante légère'],
+    67: ['🌧️', 'Pluie verglaçante forte'],
+    71: ['🌨️', 'Neige légère'],
+    73: ['🌨️', 'Neige modérée'],
+    75: ['🌨️', 'Neige forte'],
+    77: ['🌨️', 'Grains de neige'],
+    80: ['🌦️', 'Averses légères'],
+    81: ['🌦️', 'Averses modérées'],
+    82: ['⛈️', 'Averses violentes'],
+    85: ['🌨️', 'Averses de neige légères'],
+    86: ['🌨️', 'Averses de neige fortes'],
+    95: ['⛈️', 'Orage'],
+    96: ['⛈️', 'Orage avec grêle légère'],
+    99: ['⛈️', 'Orage avec grêle forte']
+  };
+  return table[code] || ['🌡️', 'Conditions inconnues'];
+}
+
+window.__computeWeather = async function () {
+  const resultEl = document.getElementById('weather-result');
+  if (!resultEl) return;
+
+  const name = (document.getElementById('weather-structure-input') || {}).value || '';
+  const dateStr = (document.getElementById('weather-date-input') || {}).value || '';
+
+  if (!name.trim()) {
+    resultEl.innerHTML = '<p class="weather-error">Merci de renseigner une structure.</p>';
+    return;
+  }
+  if (!dateStr) {
+    resultEl.innerHTML = '<p class="weather-error">Merci de choisir un jour.</p>';
+    return;
+  }
+
+  const match = window.__structureRegistry.find(e => normalizeForSearch(e.nom) === normalizeForSearch(name));
+  if (!match || !match.marker) {
+    resultEl.innerHTML = '<p class="weather-error">Structure introuvable, vérifiez l\'orthographe : ' + escapeHtml(name) + '</p>';
+    return;
+  }
+
+  resultEl.innerHTML = '<p>Recherche de la météo en cours…</p>';
+
+  const latlng = match.marker.getLatLng();
+  const today = new Date().toISOString().slice(0, 10);
+  // Passé -> API archive ; aujourd'hui ou futur -> API prévisions (fiable jusqu'à ~16 jours)
+  const isPast = dateStr < today;
+  const base = isPast
+    ? 'https://archive-api.open-meteo.com/v1/archive'
+    : 'https://api.open-meteo.com/v1/forecast';
+  const url = base +
+    '?latitude=' + latlng.lat +
+    '&longitude=' + latlng.lng +
+    '&start_date=' + dateStr +
+    '&end_date=' + dateStr +
+    '&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max' +
+    '&timezone=Europe%2FParis';
+
+  try {
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.daily || !data.daily.time || data.daily.time.length === 0) {
+      throw new Error('Pas de données pour ce jour');
+    }
+    const code = data.daily.weathercode[0];
+    const tmax = data.daily.temperature_2m_max[0];
+    const tmin = data.daily.temperature_2m_min[0];
+    const precip = data.daily.precipitation_sum[0];
+    const wind = data.daily.windspeed_10m_max[0];
+    const [icon, label] = describeWeatherCode(code);
+    const dateFormatted = new Date(dateStr + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    resultEl.innerHTML =
+      '<div class="weather-card">' +
+        '<div class="weather-card-icon">' + icon + '</div>' +
+        '<div>' +
+          '<div class="weather-card-name">' + escapeHtml(match.nom) + '</div>' +
+          '<div class="weather-card-date">' + escapeHtml(dateFormatted) + '</div>' +
+          '<div class="weather-card-desc">' + escapeHtml(label) + '</div>' +
+          '<div class="weather-card-temps">🌡️ ' + Math.round(tmin) + '°C — ' + Math.round(tmax) + '°C</div>' +
+          '<div class="weather-card-extra">💧 ' + precip + ' mm de précipitations · 💨 vent max ' + Math.round(wind) + ' km/h</div>' +
+        '</div>' +
+      '</div>';
+  } catch (err) {
+    console.warn('Météo indisponible :', err);
+    resultEl.innerHTML = '<p class="weather-error">Météo indisponible pour ce jour (trop éloigné dans le passé ou le futur, ou service momentanément inaccessible).</p>';
+  }
+};
+
 window.showGuideModal = function () {
   window.closePhotoModal();
 
@@ -1467,6 +1648,7 @@ window.showGuideModal = function () {
     '<h3>Barre d\'outils (haut à droite)</h3>' +
     '<p>Une rangée d\'icônes est disponible juste à gauche du panneau de recherche :</p>' +
     '<ul>' +
+      '<li>🌦️ Météo à une structure</li>' +
       '<li>🧭 Itinéraire multi-structures</li>' +
       '<li>🏥 Santé du patrimoine</li>' +
       '<li>📅 Calendrier des visites</li>' +
@@ -1474,6 +1656,10 @@ window.showGuideModal = function () {
       '<li>🛰️ Vue satellite</li>' +
       '<li>ℹ️ Guide d\'utilisation</li>' +
     '</ul>' +
+
+    '<h3>Météo à une structure</h3>' +
+    '<p>Choisissez une structure (suggestions automatiques) et un jour — passé, présent ou à venir — puis cliquez sur « Voir la météo » : température, description du ciel, précipitations et vent maximum s\'affichent pour ce lieu et cette date.</p>' +
+    '<p>Les prévisions futures sont fiables jusqu\'à environ 16 jours ; au-delà, ou pour des dates très anciennes, la météo peut être indisponible.</p>' +
 
     '<h3>Vue satellite</h3>' +
     '<p>Bascule la carte entre le fond de plan classique (OpenStreetMap) et une vue satellite. Cliquez à nouveau pour revenir à la vue normale.</p>' +
