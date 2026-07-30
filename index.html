@@ -205,6 +205,40 @@
   .weather-card-desc { font-size: 13px; color: #333; }
   .weather-card-temps { font-size: 13px; color: #333; margin-top: 4px; }
   .weather-card-extra { font-size: 12px; color: #666; margin-top: 4px; }
+
+  .visit-mode-panel {
+    position: fixed;
+    top: 56px;
+    right: 12px;
+    z-index: 1000;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    width: 280px;
+    padding: 10px 12px;
+    box-sizing: border-box;
+  }
+  .visit-mode-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #111;
+    margin-bottom: 6px;
+  }
+  .visit-mode-date-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .visit-mode-count {
+    font-size: 12px;
+    color: #555;
+    margin-top: 8px;
+  }
   .itinerary-label { display: block; font-size: 12px; color: #555; margin-bottom: 4px; }
   .itinerary-count-input {
     width: 70px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 13px; margin-bottom: 10px;
@@ -370,6 +404,7 @@
   #map-health-btn { right: 492px; }
   #map-itinerary-btn { right: 540px; }
   #map-weather-btn { right: 588px; }
+  #map-visit-mode-btn { right: 636px; }
 
   .measure-label-icon {
     background: transparent;
@@ -1133,6 +1168,19 @@ function ensureWeatherButton() {
 }
 ensureWeatherButton();
 
+// Bouton "mode visite", affiché à gauche du bouton météo
+function ensureVisitModeButton() {
+  if (document.getElementById('map-visit-mode-btn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'map-visit-mode-btn';
+  btn.className = 'map-toolbar-btn';
+  btn.title = 'Mode visite (n\'afficher que les structures visitées un jour donné)';
+  btn.textContent = '✅';
+  btn.onclick = toggleVisitMode;
+  document.body.appendChild(btn);
+}
+ensureVisitModeButton();
+
 // Légende des couleurs de domaines géographiques (bas à gauche)
 function ensureDomaineLegend() {
   if (document.getElementById('domaine-legend')) return;
@@ -1648,6 +1696,7 @@ window.showGuideModal = function () {
     '<h3>Barre d\'outils (haut à droite)</h3>' +
     '<p>Une rangée d\'icônes est disponible juste à gauche du panneau de recherche :</p>' +
     '<ul>' +
+      '<li>✅ Mode visite</li>' +
       '<li>🌦️ Météo à une structure</li>' +
       '<li>🧭 Itinéraire multi-structures</li>' +
       '<li>🏥 Santé du patrimoine</li>' +
@@ -1655,6 +1704,16 @@ window.showGuideModal = function () {
       '<li>📏 Mesurer une distance</li>' +
       '<li>🛰️ Vue satellite</li>' +
       '<li>ℹ️ Guide d\'utilisation</li>' +
+    '</ul>' +
+
+    '<h3>Mode visite</h3>' +
+    '<p>Ce bouton bascule la carte dans un affichage dédié aux visites d\'un jour donné :</p>' +
+    '<ul>' +
+      '<li>Les <b>polygones de domaine disparaissent</b> le temps que le mode est actif.</li>' +
+      '<li>Un petit panneau apparaît avec un sélecteur de <b>jour</b> (aujourd\'hui par défaut).</li>' +
+      '<li>Seules les <b>structures ayant une visite programmée ce jour-là</b> (via le calendrier 📅) restent affichées sur la carte, avec le nombre de visites du jour indiqué dans le panneau.</li>' +
+      '<li>Changer le jour dans le panneau met à jour instantanément la sélection de structures affichées.</li>' +
+      '<li>Recliquez sur le bouton pour désactiver le mode : les domaines et toutes les structures réapparaissent.</li>' +
     '</ul>' +
 
     '<h3>Météo à une structure</h3>' +
@@ -2618,6 +2677,85 @@ function resetStructureFilter() {
   applyStructureFilter(() => true);
 }
 
+// -------------------------------------------------------------------
+// Mode visite : masque les domaines et n'affiche que les structures
+// dont une visite est programmée au jour sélectionné (calendrier)
+// -------------------------------------------------------------------
+
+let visitModeActive = false;
+let visitModeDate = null;
+
+function toggleVisitMode() {
+  visitModeActive = !visitModeActive;
+  const btn = document.getElementById('map-visit-mode-btn');
+  if (btn) btn.classList.toggle('active', visitModeActive);
+
+  if (visitModeActive) {
+    map.removeLayer(layerGroup); // masque les polygones de domaine
+    if (!visitModeDate) visitModeDate = new Date().toISOString().slice(0, 10);
+    ensureVisitModePanel();
+    applyVisitModeFilter();
+  } else {
+    if (!map.hasLayer(layerGroup)) layerGroup.addTo(map); // réaffiche les domaines
+    removeVisitModePanel();
+    resetStructureFilter();
+  }
+}
+
+function ensureVisitModePanel() {
+  let panel = document.getElementById('visit-mode-panel');
+  if (panel) {
+    document.getElementById('visit-mode-date-input').value = visitModeDate;
+    return;
+  }
+  panel = document.createElement('div');
+  panel.id = 'visit-mode-panel';
+  panel.className = 'visit-mode-panel';
+  panel.innerHTML =
+    '<label class="visit-mode-label">✅ Mode visite — jour :</label>' +
+    '<input type="date" id="visit-mode-date-input" class="visit-mode-date-input" value="' + visitModeDate + '" />' +
+    '<div id="visit-mode-count" class="visit-mode-count"></div>';
+  document.body.appendChild(panel);
+  document.getElementById('visit-mode-date-input').addEventListener('change', function () {
+    visitModeDate = this.value;
+    applyVisitModeFilter();
+  });
+}
+
+function removeVisitModePanel() {
+  const panel = document.getElementById('visit-mode-panel');
+  if (panel) panel.remove();
+}
+
+// Filtre la carte pour ne garder que les structures ayant une visite programmée à visitModeDate
+function applyVisitModeFilter() {
+  if (!visitModeDate) return;
+
+  const plannedForDay = window.__visitPlanning[visitModeDate] || [];
+  const rowIds = new Set(plannedForDay.map(v => v.rowId));
+
+  structureLayerGroup.clearLayers();
+  const matchedLatLngs = [];
+  window.__structureRegistry.forEach(entry => {
+    if (!entry.marker) return;
+    if (rowIds.has(entry.rowId)) {
+      entry.marker.addTo(structureLayerGroup);
+      matchedLatLngs.push(entry.marker.getLatLng());
+    }
+  });
+
+  if (matchedLatLngs.length > 0) {
+    map.fitBounds(matchedLatLngs, { padding: [40, 40], maxZoom: 16 });
+  }
+
+  const countEl = document.getElementById('visit-mode-count');
+  if (countEl) {
+    countEl.textContent = plannedForDay.length > 0
+      ? plannedForDay.length + ' visite(s) programmée(s) ce jour'
+      : 'Aucune visite programmée ce jour';
+  }
+}
+
 window.__resetStructureSearch = function () {
   const input = document.getElementById('structure-search-input');
   if (input) input.value = '';
@@ -3140,6 +3278,12 @@ async function drawRecords(records, mappings) {
   }
 
   buildSearchPanel();
+
+  // Si le mode visite est actif, on réapplique son filtre (les données viennent d'être reconstruites)
+  if (visitModeActive) {
+    if (map.hasLayer(layerGroup)) map.removeLayer(layerGroup);
+    applyVisitModeFilter();
+  }
 }
 
 // -------------------------------------------------------------------
