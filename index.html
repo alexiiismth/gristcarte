@@ -82,6 +82,20 @@
   .structure-card .btn-fiche { background: #1565c0; }
   .structure-card .btn-form { background: #2e7d32; }
   .structure-card .btn-maps { background: #616161; }
+  .structure-card .btn-travaux { background: #e65100; }
+  .structure-card .btn-pdf-ouvrage { background: #6a1b9a; }
+
+  .objet-select {
+    width: 100%;
+    margin: 8px 0 4px 0;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    box-sizing: border-box;
+    background: #fff;
+    color: #333;
+  }
 
   .structure-card .warning-box {
     display: none;
@@ -795,6 +809,50 @@
     border-top: 1px solid #ddd;
     padding-top: 8px;
   }
+  .pdf-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .pdf-table th {
+    text-align: left;
+    background: #eef3f8;
+    padding: 7px 9px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #555;
+    border: 1px solid #dde3e8;
+  }
+  .pdf-table td {
+    padding: 7px 9px;
+    color: #222;
+    border: 1px solid #dde3e8;
+    vertical-align: top;
+  }
+  .pdf-page-break { page-break-before: always; }
+
+  .travaux-modal { min-width: 480px; max-width: 720px; }
+  .travaux-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 13px;
+  }
+  .travaux-table th {
+    text-align: left;
+    background: #eef3f8;
+    padding: 8px;
+    border: 1px solid #dde3e8;
+    color: #555;
+    font-size: 12px;
+  }
+  .travaux-table td {
+    padding: 8px;
+    border: 1px solid #dde3e8;
+    color: #333;
+  }
   .info-guide-btn {
     position: fixed;
     top: 12px;
@@ -1149,20 +1207,20 @@ function ensureItineraryButton() {
   const btn = document.createElement('button');
   btn.id = 'map-itinerary-btn';
   btn.className = 'map-toolbar-btn';
-  btn.title = 'Itinéraire entre plusieurs structures';
+  btn.title = 'Itinéraire entre plusieurs ouvrages';
   btn.textContent = '🧭';
   btn.onclick = function () { window.showItineraryModal(); };
   document.body.appendChild(btn);
 }
 ensureItineraryButton();
 
-// Bouton "météo d'une structure", affiché à gauche du bouton itinéraire
+// Bouton "météo d'un ouvrage", affiché à gauche du bouton itinéraire
 function ensureWeatherButton() {
   if (document.getElementById('map-weather-btn')) return;
   const btn = document.createElement('button');
   btn.id = 'map-weather-btn';
   btn.className = 'map-toolbar-btn';
-  btn.title = 'Météo à une structure';
+  btn.title = 'Météo à un ouvrage';
   btn.textContent = '🌦️';
   btn.onclick = function () { window.showWeatherModal(); };
   document.body.appendChild(btn);
@@ -1175,7 +1233,7 @@ function ensureVisitModeButton() {
   const btn = document.createElement('button');
   btn.id = 'map-visit-mode-btn';
   btn.className = 'map-toolbar-btn';
-  btn.title = 'Mode visite (n\'afficher que les structures visitées un jour donné)';
+  btn.title = 'Mode visite (n\'afficher que les ouvrages visitées un jour donné)';
   btn.textContent = '✅';
   btn.onclick = toggleVisitMode;
   document.body.appendChild(btn);
@@ -1251,14 +1309,14 @@ function letterGradeBadge(value) {
 // Tableau de bord "Santé du patrimoine"
 // -------------------------------------------------------------------
 
-// Calcule les statistiques de santé à partir du registre (dédupliqué par nom, une structure = une seule fois)
+// Calcule les statistiques de santé à partir du registre (dédupliqué par nom, un ouvrage = une seule fois)
 function computePatrimoineHealthStats() {
   const seen = new Set();
   let bon = 0, surveiller = 0, travaux = 0, urgent = 0, nonRenseigne = 0, total = 0;
 
   window.__structureRegistry.forEach(entry => {
     const key = normalizeForSearch(entry.nom);
-    if (seen.has(key)) return; // une structure ne doit être comptée qu'une seule fois
+    if (seen.has(key)) return; // un ouvrage ne doit être comptée qu'une seule fois
     seen.add(key);
     total++;
 
@@ -1327,8 +1385,8 @@ window.showItineraryModal = function () {
   overlay.innerHTML =
     '<div class="photo-modal itinerary-modal">' +
       '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
-      '<h3>🧭 Itinéraire entre plusieurs structures</h3>' +
-      '<label class="itinerary-label">Nombre de structures à visiter</label>' +
+      '<h3>🧭 Itinéraire entre plusieurs ouvrages</h3>' +
+      '<label class="itinerary-label">Nombre d\'ouvrages à visiter</label>' +
       '<input type="number" id="itinerary-count" class="itinerary-count-input" min="2" max="25" value="2" />' +
       '<div id="itinerary-inputs"></div>' +
       '<button class="btn btn-form itinerary-calc-btn" onclick="window.__computeItinerary()">⏱️ Calculer le temps de trajet</button>' +
@@ -1340,7 +1398,7 @@ window.showItineraryModal = function () {
   window.__buildItineraryInputs();
 };
 
-// (Re)construit les champs de saisie du nom de structure, selon le nombre demandé
+// (Re)construit les champs de saisie du nom d\'ouvrage, selon le nombre demandé
 window.__buildItineraryInputs = function () {
   const countEl = document.getElementById('itinerary-count');
   const container = document.getElementById('itinerary-inputs');
@@ -1360,7 +1418,7 @@ window.__buildItineraryInputs = function () {
     html +=
       '<div class="itinerary-row">' +
         '<span class="itinerary-row-num">' + (i + 1) + '</span>' +
-        '<input type="text" class="itinerary-structure-input" list="itinerary-structure-list" placeholder="Nom de la structure" value="' + escapeHtml(val) + '" />' +
+        '<input type="text" class="itinerary-structure-input" list="itinerary-structure-list" placeholder="Nom de l\'ouvrage" value="' + escapeHtml(val) + '" />' +
       '</div>';
   }
   container.innerHTML = html;
@@ -1368,7 +1426,7 @@ window.__buildItineraryInputs = function () {
   ensureItineraryDatalist();
 };
 
-// Construit/actualise la liste de suggestions (datalist) avec tous les noms de structures
+// Construit/actualise la liste de suggestions (datalist) avec tous les noms d\'ouvrages
 function ensureItineraryDatalist() {
   let dl = document.getElementById('itinerary-structure-list');
   if (!dl) {
@@ -1423,7 +1481,7 @@ window.__computeItinerary = async function () {
   const names = inputs.map(i => i.value.trim()).filter(Boolean);
 
   if (names.length < 2) {
-    resultEl.innerHTML = '<p class="itinerary-error">Merci de renseigner au moins 2 structures.</p>';
+    resultEl.innerHTML = '<p class="itinerary-error">Merci de renseigner au moins 2 ouvrages.</p>';
     return;
   }
 
@@ -1436,7 +1494,7 @@ window.__computeItinerary = async function () {
   });
 
   if (notFound.length > 0) {
-    resultEl.innerHTML = '<p class="itinerary-error">Structure(s) introuvable(s), vérifiez l\'orthographe : ' + notFound.map(escapeHtml).join(', ') + '</p>';
+    resultEl.innerHTML = '<p class="itinerary-error">Ouvrage(s) introuvable(s), vérifiez l\'orthographe : ' + notFound.map(escapeHtml).join(', ') + '</p>';
     return;
   }
 
@@ -1483,7 +1541,7 @@ window.__computeItinerary = async function () {
 };
 
 // -------------------------------------------------------------------
-// Météo à une structure, pour un jour donné (passé, aujourd'hui ou à venir)
+// Météo à un ouvrage, pour un jour donné (passé, aujourd'hui ou à venir)
 // -------------------------------------------------------------------
 
 window.showWeatherModal = function () {
@@ -1498,9 +1556,9 @@ window.showWeatherModal = function () {
   overlay.innerHTML =
     '<div class="photo-modal weather-modal">' +
       '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
-      '<h3>🌦️ Météo à une structure</h3>' +
-      '<label class="weather-label">Structure</label>' +
-      '<input type="text" id="weather-structure-input" class="weather-input" list="weather-structure-list" placeholder="Nom de la structure" autocomplete="off" />' +
+      '<h3>🌦️ Météo à un ouvrage</h3>' +
+      '<label class="weather-label">Ouvrage</label>' +
+      '<input type="text" id="weather-structure-input" class="weather-input" list="weather-structure-list" placeholder="Nom de l\'ouvrage" autocomplete="off" />' +
       '<label class="weather-label">Jour</label>' +
       '<input type="date" id="weather-date-input" class="weather-input" value="' + today + '" />' +
       '<button class="btn btn-form" onclick="window.__computeWeather()">🔎 Voir la météo</button>' +
@@ -1511,7 +1569,7 @@ window.showWeatherModal = function () {
   ensureWeatherDatalist();
 };
 
-// Construit/actualise la liste de suggestions (datalist) avec tous les noms de structures
+// Construit/actualise la liste de suggestions (datalist) avec tous les noms d\'ouvrages
 function ensureWeatherDatalist() {
   let dl = document.getElementById('weather-structure-list');
   if (!dl) {
@@ -1570,7 +1628,7 @@ window.__computeWeather = async function () {
   const dateStr = (document.getElementById('weather-date-input') || {}).value || '';
 
   if (!name.trim()) {
-    resultEl.innerHTML = '<p class="weather-error">Merci de renseigner une structure.</p>';
+    resultEl.innerHTML = '<p class="weather-error">Merci de renseigner un ouvrage.</p>';
     return;
   }
   if (!dateStr) {
@@ -1580,7 +1638,7 @@ window.__computeWeather = async function () {
 
   const match = window.__structureRegistry.find(e => normalizeForSearch(e.nom) === normalizeForSearch(name));
   if (!match || !match.marker) {
-    resultEl.innerHTML = '<p class="weather-error">Structure introuvable, vérifiez l\'orthographe : ' + escapeHtml(name) + '</p>';
+    resultEl.innerHTML = '<p class="weather-error">Ouvrage introuvable, vérifiez l\'orthographe : ' + escapeHtml(name) + '</p>';
     return;
   }
 
@@ -1640,15 +1698,15 @@ window.showGuideModal = function () {
     '<p class="guide-subtitle">Carte interactive développée par l\'agence d\'Angers du Cerema</p>' +
 
     '<h3>Présentation générale</h3>' +
-    '<p>La carte affiche deux types d\'éléments : les <b>domaines/parcs</b> (polygones colorés délimitant leur emprise géographique) et les <b>structures (ouvrages)</b>, représentées par des pins rouges par défaut, ou par une photo personnalisée si elle a été renseignée (par exemple l\'image d\'un pont).</p>' +
+    '<p>La carte affiche deux types d\'éléments : les <b>domaines/parcs</b> (polygones colorés délimitant leur emprise géographique) et les <b>ouvrages (ouvrages)</b>, représentées par des pins rouges par défaut, ou par une photo personnalisée si elle a été renseignée (par exemple l\'image d\'un pont).</p>' +
 
     '<h3>Consulter un domaine</h3>' +
     '<p>Survolez un polygone pour afficher un encadré indiquant son nom, son estimation de superficie (ha), sa ou ses protection(s), et un bouton 📷 Photo pour voir une image illustrative avec sa description.</p>' +
 
-    '<h3>Consulter une structure</h3>' +
+    '<h3>Consulter un ouvrage</h3>' +
     '<p>Survolez un pin pour afficher un encadré complet :</p>' +
     '<ul>' +
-      '<li>Le nom de la structure, avec son numéro affiché en gris juste en dessous (« Structure n°X »)</li>' +
+      '<li>Le nom de l\'ouvrage, avec son numéro affiché en gris juste en dessous (« Ouvrage n°X »)</li>' +
       '<li>Son <b>domaine géographique</b> (détecté automatiquement si elle se trouve dans un polygone, sinon repli manuel)</li>' +
       '<li>Sa classification <b>Domaine / Famille / Groupe</b>, utilisée pour la recherche</li>' +
       '<li>Son <b>état structurel</b> et son <b>état de sécurité usager</b> (lettre A à F, colorée — voir ci-dessous), provenant de la fiche de la visite la plus récente</li>' +
@@ -1666,40 +1724,45 @@ window.showGuideModal = function () {
     '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#e53935;">E</span><span style="font-size:13px;color:#333;">Intervention urgente</span></div>' +
     '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#7f0000;">F</span><span style="font-size:13px;color:#333;">Intervention urgente</span></div>' +
 
-    '<h3>Boutons de l\'encadré structure</h3>' +
+    '<h3>Boutons de l\'encadré ouvrage</h3>' +
     '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
       '<tr style="background:#f5f5f5;"><th style="text-align:left;padding:6px;border:1px solid #ddd;">Bouton</th><th style="text-align:left;padding:6px;border:1px solid #ddd;">Fonction</th></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📄 Voir la/les fiche(s) visite(s)</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la ou les fiches de visite (onglets si plusieurs, triées de la plus récente à la plus ancienne). Message si aucune visite.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">➕ Créer une fiche visite</td><td style="padding:6px;border:1px solid #ddd;">Redirige vers le formulaire externe de saisie d\'une nouvelle visite.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">🧭 Naviguer</td><td style="padding:6px;border:1px solid #ddd;">Ouvre Google Maps centré sur la structure.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">📷 Photo(s) initial de la structure</td><td style="padding:6px;border:1px solid #ddd;">Affiche jusqu\'à 4 photos de référence avec description.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à toutes les structures.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">🧭 Naviguer</td><td style="padding:6px;border:1px solid #ddd;">Ouvre Google Maps centré sur l\'ouvrage.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">📷 Photo(s) initial de l\'ouvrage</td><td style="padding:6px;border:1px solid #ddd;">Affiche jusqu\'à 4 photos de référence avec description.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à tous les ouvrages.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">🚧 Travaux</td><td style="padding:6px;border:1px solid #ddd;">Affiche l\'historique des interventions réalisées sur l\'ouvrage (date, mécanique/usages, type d\'action, commentaire).</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">📥 Télécharger la fiche PDF</td><td style="padding:6px;border:1px solid #ddd;">Génère la fiche synthétique complète de l\'ouvrage (informations, illustration, objets, synthèse des visites, historique des interventions), suivie de l\'ensemble des fiches de visite détaillées.</td></tr>' +
     '</table>' +
 
+    '<h3>Menu déroulant des objets</h3>' +
+    '<p>Lorsque des objets sont renseignés pour un ouvrage (ex : tablier, culées, buse…), un menu déroulant apparaît dans l\'encadré. En sélectionnant un objet, les boutons habituels laissent place à deux nouveaux boutons : <b>📄 Fiche de l\'objet</b> et <b>➕ Créer une fiche à l\'objet</b>. Un bouton ↩️ Retour permet de revenir aux boutons par défaut.</p>' +
+
     '<h3>Fiches de visite &amp; export PDF</h3>' +
-    '<p>Chaque fiche affiche : inspecteur(s), date de la visite, nom complet de la structure, description (tiret si vide), état structurel, état de sécurité usager, et jusqu\'à 5 photos avec leur description.</p>' +
-    '<p>Si plusieurs visites existent pour une même structure, elles apparaissent sous forme d\'onglets classés du plus récent au plus ancien.</p>' +
+    '<p>Chaque fiche affiche : inspecteur(s), date de la visite, nom complet de l\'ouvrage, condition de visite, description (tiret si vide), état structurel, état de sécurité usager, désordre(s) mécanique, désordre(s) d\'usage, et jusqu\'à 5 photos avec leur description.</p>' +
+    '<p>Si plusieurs visites existent pour une même ouvrage, elles apparaissent sous forme d\'onglets classés du plus récent au plus ancien.</p>' +
     '<div style="background:#f4f7fa;border:1px solid #e0e6eb;border-radius:10px;padding:10px 14px;margin:10px 0;border-left:4px solid #1565c0;">' +
-      '<p style="margin:0;"><b>🖨️ Exporter en PDF</b> : en bas de chaque fiche, ce bouton génère un document propre et autonome (en-tête, tableau d\'informations, description, photos en grille) prêt à imprimer ou enregistrer en PDF — indépendant de la fenêtre à l\'écran.</p>' +
+      '<p style="margin:0;"><b>🖨️ Exporter en PDF</b> : en bas de chaque fiche, ce bouton génère un document propre et autonome (en-tête, tableau d\'informations, description, photos en grille) prêt à imprimer ou enregistrer en PDF — indépendant de la fenêtre à l\'écran. Le bouton <b>📥 Télécharger la fiche PDF</b> de l\'encadré ouvrage reprend ce même principe, en y ajoutant en fin de document l\'ensemble des fiches de visite complètes de l\'ouvrage.</p>' +
     '</div>' +
 
     '<h3>Copier des coordonnées GPS</h3>' +
     '<p>Un simple clic n\'importe où sur la carte — pin, domaine, ou zone vide — copie automatiquement les coordonnées GPS de cet endroit dans le presse-papier, avec un message de confirmation en bas de l\'écran.</p>' +
 
-    '<h3>Rechercher une structure</h3>' +
-    '<p>Le panneau en haut à droite « Rechercher une ou des structures » propose deux méthodes :</p>' +
+    '<h3>Rechercher un ouvrage</h3>' +
+    '<p>Le panneau en haut à droite « Rechercher une ou des ouvrages » propose deux méthodes :</p>' +
     '<ol>' +
       '<li><b>Recherche par nom</b> : tapez un nom, la carte se recentre automatiquement.</li>' +
-      '<li><b>Navigation par catégorie</b> : cliquez sur la flèche (▾) pour dérouler l\'arborescence <b>Domaine → Famille → Groupe → Structure</b>. Une famille peut apparaître sous plusieurs domaines si elle leur appartient à tous. Cliquer sur une structure (📍) recentre la carte sur son emplacement et ouvre son encadré.</li>' +
+      '<li><b>Navigation par catégorie</b> : cliquez sur la flèche (▾) pour dérouler l\'arborescence <b>Domaine → Famille → Groupe → Ouvrage</b>. Une famille peut apparaître sous plusieurs domaines si elle leur appartient à tous. Cliquer sur un ouvrage (📍) recentre la carte sur son emplacement et ouvre son encadré.</li>' +
     '</ol>' +
-    '<p>Si aucune structure n\'est associée à la sélection, le message <i>« Aucune structure n\'est associée aux paramètres sélectionnés »</i> s\'affiche.</p>' +
+    '<p>Si aucun ouvrage n\'est associée à la sélection, le message <i>« Aucun ouvrage n\'est associé aux paramètres sélectionnés »</i> s\'affiche.</p>' +
 
     '<h3>Barre d\'outils (haut à droite)</h3>' +
     '<p>Une rangée d\'icônes est disponible juste à gauche du panneau de recherche :</p>' +
     '<ul>' +
       '<li>✅ Mode visite</li>' +
-      '<li>🌦️ Météo à une structure</li>' +
-      '<li>🧭 Itinéraire multi-structures</li>' +
+      '<li>🌦️ Météo à un ouvrage</li>' +
+      '<li>🧭 Itinéraire multi-ouvrages</li>' +
       '<li>🏥 Santé du patrimoine</li>' +
       '<li>📅 Calendrier des visites</li>' +
       '<li>📏 Mesurer une distance</li>' +
@@ -1712,13 +1775,13 @@ window.showGuideModal = function () {
     '<ul>' +
       '<li>Les <b>polygones de domaine disparaissent</b> le temps que le mode est actif.</li>' +
       '<li>Un panneau apparaît en haut à droite avec un bouton <b>📅 Choisir le jour</b>, qui ouvre une fenêtre pour sélectionner n\'importe quelle date (passée, présente ou future).</li>' +
-      '<li>Une fois le jour validé, seules les <b>structures ayant une visite programmée ce jour-là</b> (via le calendrier 📅) restent affichées sur la carte, avec le nombre de visites du jour indiqué dans le panneau.</li>' +
+      '<li>Une fois le jour validé, seules les <b>ouvrages ayant une visite programmée ce jour-là</b> (via le calendrier 📅) restent affichées sur la carte, avec le nombre de visites du jour indiqué dans le panneau.</li>' +
       '<li>Le bouton 📅 Choisir le jour reste disponible pour changer de date à tout moment tant que le mode est actif.</li>' +
-      '<li>Recliquez sur le bouton ✅ de la barre d\'outils pour désactiver le mode : les domaines et toutes les structures réapparaissent.</li>' +
+      '<li>Recliquez sur le bouton ✅ de la barre d\'outils pour désactiver le mode : les domaines et tous les ouvrages réapparaissent.</li>' +
     '</ul>' +
 
-    '<h3>Météo à une structure</h3>' +
-    '<p>Choisissez une structure (suggestions automatiques) et un jour — passé, présent ou à venir — puis cliquez sur « Voir la météo » : température, description du ciel, précipitations et vent maximum s\'affichent pour ce lieu et cette date.</p>' +
+    '<h3>Météo à un ouvrage</h3>' +
+    '<p>Choisissez un ouvrage (suggestions automatiques) et un jour — passé, présent ou à venir — puis cliquez sur « Voir la météo » : température, description du ciel, précipitations et vent maximum s\'affichent pour ce lieu et cette date.</p>' +
     '<p>Les prévisions futures sont fiables jusqu\'à environ 16 jours ; au-delà, ou pour des dates très anciennes, la météo peut être indisponible.</p>' +
 
     '<h3>Vue satellite</h3>' +
@@ -1736,8 +1799,8 @@ window.showGuideModal = function () {
     '<h3>Calendrier des visites prévues</h3>' +
     '<p>Ce bouton ouvre une fenêtre permettant de :</p>' +
     '<ul>' +
-      '<li><b>Planifier une visite</b> : tapez ou choisissez un nom de structure (suggestions automatiques), choisissez une date, puis cliquez sur « Planifier ».</li>' +
-      '<li><b>Consulter les visites à venir</b>, regroupées par jour, avec un lien direct vers chaque structure sur la carte.</li>' +
+      '<li><b>Planifier une visite</b> : tapez ou choisissez un nom d\'ouvrage (suggestions automatiques), choisissez une date, puis cliquez sur « Planifier ».</li>' +
+      '<li><b>Consulter les visites à venir</b>, regroupées par jour, avec un lien direct vers chaque ouvrage sur la carte.</li>' +
       '<li><b>Annuler</b> une visite prévue via le bouton ✕ à côté de son nom.</li>' +
     '</ul>' +
 
@@ -1749,13 +1812,13 @@ window.showGuideModal = function () {
       '<li><b>Travaux nécessaires</b> (D)</li>' +
       '<li><b>Intervention urgente</b> (E/F)</li>' +
     '</ul>' +
-    '<p>Chaque catégorie est représentée par une barre de progression avec son pourcentage et son nombre d\'ouvrages. Les structures sans état renseigné sont indiquées séparément et exclues du calcul des pourcentages.</p>' +
+    '<p>Chaque catégorie est représentée par une barre de progression avec son pourcentage et son nombre d\'ouvrages. Les ouvrages sans état renseigné sont indiquées séparément et exclues du calcul des pourcentages.</p>' +
 
-    '<h3>Itinéraire multi-structures</h3>' +
+    '<h3>Itinéraire multi-ouvrages</h3>' +
     '<p>Pour organiser une tournée de plusieurs visites :</p>' +
     '<ol>' +
-      '<li>Indiquez le nombre de structures à visiter.</li>' +
-      '<li>Renseignez le nom de chaque structure (suggestions automatiques).</li>' +
+      '<li>Indiquez le nombre d\'ouvrages à visiter.</li>' +
+      '<li>Renseignez le nom de chaque ouvrage (suggestions automatiques).</li>' +
       '<li>Cliquez sur « Calculer le temps de trajet » : le temps et la distance entre chaque étape (puis le total) s\'affichent.</li>' +
       '<li>Ouvrez directement l\'itinéraire dans Google Maps ou Plans (Apple Maps) via les boutons dédiés.</li>' +
     '</ol>' +
@@ -1771,7 +1834,7 @@ window.showGuideModal = function () {
     '<p style="margin-top:8px;">Une couleur manuelle peut toujours être forcée si besoin, auquel cas elle est prioritaire sur la détection automatique.</p>' +
 
     '<h3>En cas de problème</h3>' +
-    '<p>Si une information ne s\'affiche pas correctement (photo manquante, mauvaise famille/groupe, structure introuvable, itinéraire non calculé), vérifiez en priorité :</p>' +
+    '<p>Si une information ne s\'affiche pas correctement (photo manquante, mauvaise famille/groupe, ouvrage introuvable, itinéraire non calculé), vérifiez en priorité :</p>' +
     '<ul>' +
       '<li>Le <b>mapping des colonnes</b> dans les paramètres du widget Grist</li>' +
       '<li>Le contenu exact des cellules concernées dans le tableau source</li>' +
@@ -1882,7 +1945,7 @@ function parseFrenchNumber(value) {
   return Number(String(value).trim().replace(',', '.'));
 }
 
-// Clé de regroupement d'une structure : par nom (prioritaire) sinon par coordonnées GPS arrondies
+// Clé de regroupement d'un ouvrage : par nom (prioritaire) sinon par coordonnées GPS arrondies
 function structureGroupKey(mapped) {
   const name = (mapped.NomStructure || '').toString().trim().toLowerCase();
   if (name) return 'name:' + name;
@@ -1920,7 +1983,7 @@ function formatVisitLabel(raw) {
 }
 
 // -------------------------------------------------------------------
-// Détection géographique : une structure est-elle à l'intérieur d'un polygone de domaine ?
+// Détection géographique : un ouvrage est-elle à l'intérieur d'un polygone de domaine ?
 // -------------------------------------------------------------------
 
 // Test "point dans un anneau" par ray-casting. point = [lat, lng], ring = [[lat,lng], ...]
@@ -2008,7 +2071,13 @@ function escapeHtml(str) {
 window.__photoStore = {};
 // Stockage global des fiches de visite complètes
 window.__ficheStore = {};
-// Registre des structures affichées (utilisé par le panneau de recherche Domaine/Famille/Groupe)
+// Stockage global des travaux/interventions par ouvrage
+window.__travauxStore = {};
+// Stockage global des objets liés à chaque ouvrage (pour le menu déroulant)
+window.__objetsStore = {};
+// Stockage global des données complètes de chaque ouvrage (pour la fiche PDF complète)
+window.__ouvrageStore = {};
+// Registre des ouvrages affichées (utilisé par le panneau de recherche Domaine/Famille/Groupe)
 window.__structureRegistry = [];
 // Planification des visites du calendrier : { 'AAAA-MM-JJ': [ { rowId, nom }, ... ] }
 // Stockée dans les options du widget Grist (grist.setOption / grist.onOptions), PAS dans une colonne de table.
@@ -2120,10 +2189,13 @@ window.__ficheRenderTab = async function (storeId, idx) {
   const rowsHtml =
     '<div class="modal-row"><b>Inspecteur(s) :</b> ' + escapeHtml(visit.data.inspecteurs || '—') + '</div>' +
     '<div class="modal-row"><b>Date de la visite :</b> ' + escapeHtml(visit.data.date || '—') + '</div>' +
-    '<div class="modal-row"><b>Nom complet structure :</b> ' + escapeHtml(visit.data.nomComplet || '—') + '</div>' +
+    '<div class="modal-row"><b>Nom complet ouvrage :</b> ' + escapeHtml(visit.data.nomComplet || '—') + '</div>' +
+    '<div class="modal-row"><b>Condition de visite :</b> ' + escapeHtml(visit.data.conditionVisite || '—') + '</div>' +
     '<div class="modal-row"><b>Description :</b> ' + escapeHtml(visit.data.description || '—') + '</div>' +
     '<div class="modal-row"><b>État structurel :</b> ' + escapeHtml(visit.data.etatStructurel || '—') + '</div>' +
-    '<div class="modal-row"><b>État sécurité usager :</b> ' + escapeHtml(visit.data.etatSecurite || '—') + '</div>';
+    '<div class="modal-row"><b>État sécurité usager :</b> ' + escapeHtml(visit.data.etatSecurite || '—') + '</div>' +
+    '<div class="modal-row"><b>Désordre(s) mécanique :</b> ' + escapeHtml(visit.data.desordreMecanique || '—') + '</div>' +
+    '<div class="modal-row"><b>Désordre(s) d\'usage :</b> ' + escapeHtml(visit.data.desordreUsage || '—') + '</div>';
 
   const contentArea = document.getElementById('fiche-content-area');
   if (contentArea) {
@@ -2150,6 +2222,49 @@ window.__ficheSwitchTab = function (storeId, idx, btnEl) {
   window.__ficheRenderTab(storeId, idx);
 };
 
+// Construit le bloc HTML complet d'une fiche de visite (réutilisé pour l'export individuel
+// ET pour la fiche complète de l'ouvrage, qui liste toutes les visites à la suite)
+async function buildVisitPdfHtml(visit, headingLevel) {
+  const photosHtml = await buildPdfPhotosHtml(visit.data.photos);
+  const Htag = headingLevel || 'h1';
+
+  return (
+    '<div class="pdf-header pdf-visit-header">' +
+      '<' + Htag + '>📄 Fiche de visite</' + Htag + '>' +
+      '<div class="pdf-header-sub">' + escapeHtml(visit.data.nomComplet || '—') + ' — ' + escapeHtml(visit.data.date || '—') + '</div>' +
+    '</div>' +
+    '<table class="pdf-info-table">' +
+      '<tr>' +
+        '<th>Inspecteur(s)</th><td>' + escapeHtml(visit.data.inspecteurs || '—') + '</td>' +
+        '<th>Date de la visite</th><td>' + escapeHtml(visit.data.date || '—') + '</td>' +
+      '</tr>' +
+      '<tr>' +
+        '<th>État structurel</th><td>' + escapeHtml(visit.data.etatStructurel || '—') + '</td>' +
+        '<th>État sécurité usager</th><td>' + escapeHtml(visit.data.etatSecurite || '—') + '</td>' +
+      '</tr>' +
+      '<tr>' +
+        '<th>Condition de visite</th><td colspan="3">' + escapeHtml(visit.data.conditionVisite || '—') + '</td>' +
+      '</tr>' +
+    '</table>' +
+    '<div class="pdf-section">' +
+      '<h3>Description</h3>' +
+      '<p>' + escapeHtml(visit.data.description || '—') + '</p>' +
+    '</div>' +
+    '<div class="pdf-section">' +
+      '<h3>Désordre(s) mécanique</h3>' +
+      '<p>' + escapeHtml(visit.data.desordreMecanique || '—') + '</p>' +
+    '</div>' +
+    '<div class="pdf-section">' +
+      '<h3>Désordre(s) d\'usage</h3>' +
+      '<p>' + escapeHtml(visit.data.desordreUsage || '—') + '</p>' +
+    '</div>' +
+    '<div class="pdf-section">' +
+      '<h3>Photos</h3>' +
+      '<div class="pdf-photo-grid">' + photosHtml + '</div>' +
+    '</div>'
+  );
+}
+
 // Construit une belle fiche imprimable (indépendante de la fenêtre interactive) et lance l'impression/export PDF
 window.exportFicheToPdf = async function () {
   const storeId = window.__activeFicheStoreId;
@@ -2165,31 +2280,7 @@ window.exportFicheToPdf = async function () {
   // Affiche d'abord un état "chargement" (au cas où la résolution des photos prendrait un instant)
   container.innerHTML = '<p>Préparation du document…</p>';
 
-  const photosHtml = await buildPdfPhotosHtml(visit.data.photos);
-
-  container.innerHTML =
-    '<div class="pdf-header">' +
-      '<h1>📄 Fiche de visite</h1>' +
-      '<div class="pdf-header-sub">' + escapeHtml(visit.data.nomComplet || '—') + '</div>' +
-    '</div>' +
-    '<table class="pdf-info-table">' +
-      '<tr>' +
-        '<th>Inspecteur(s)</th><td>' + escapeHtml(visit.data.inspecteurs || '—') + '</td>' +
-        '<th>Date de la visite</th><td>' + escapeHtml(visit.data.date || '—') + '</td>' +
-      '</tr>' +
-      '<tr>' +
-        '<th>État structurel</th><td>' + escapeHtml(visit.data.etatStructurel || '—') + '</td>' +
-        '<th>État sécurité usager</th><td>' + escapeHtml(visit.data.etatSecurite || '—') + '</td>' +
-      '</tr>' +
-    '</table>' +
-    '<div class="pdf-section">' +
-      '<h3>Description</h3>' +
-      '<p>' + escapeHtml(visit.data.description || '—') + '</p>' +
-    '</div>' +
-    '<div class="pdf-section">' +
-      '<h3>Photos</h3>' +
-      '<div class="pdf-photo-grid">' + photosHtml + '</div>' +
-    '</div>' +
+  container.innerHTML = (await buildVisitPdfHtml(visit, 'h1')) +
     '<div class="pdf-footer">Carte interactive développée par l\'agence d\'Angers du Cerema</div>';
 
   // Attend que toutes les images soient réellement chargées (sinon l'impression peut se déclencher
@@ -2246,9 +2337,178 @@ window.closePhotoModal = function () {
 };
 
 // -------------------------------------------------------------------
+// Menu déroulant des objets liés à l'ouvrage
+// -------------------------------------------------------------------
+// Quand un objet est sélectionné, les boutons par défaut de l'encadré laissent place à
+// deux boutons dédiés à l'objet ("Fiche de l'objet" / "Créer une fiche à l'objet").
+// Quand la sélection est remise à vide (ou via le bouton "Retour"), les boutons par défaut réapparaissent.
+window.__onObjetSelect = function (objetUid, selectedNom) {
+  const defaultBtns = document.getElementById('btns-default-' + objetUid);
+  const objetBtnsContainer = document.getElementById('btns-objet-' + objetUid);
+  if (!defaultBtns || !objetBtnsContainer) return;
+
+  if (!selectedNom) {
+    objetBtnsContainer.style.display = 'none';
+    objetBtnsContainer.innerHTML = '';
+    defaultBtns.style.display = 'flex';
+    return;
+  }
+
+  const objets = window.__objetsStore[objetUid] || [];
+  const objet = objets.find(o => o.nom === selectedNom);
+  if (!objet) return;
+
+  const selectId = 'select-' + objetUid;
+  const warnId = 'warn-objet-' + Math.random().toString(36).slice(2);
+
+  let btnFicheObjet, warningBox;
+  if (objet.lienFiche) {
+    btnFicheObjet = '<a class="btn btn-fiche" href="' + escapeHtml(objet.lienFiche) + '" target="_blank" rel="noopener">📄 Fiche de l\'objet</a>';
+    warningBox = '';
+  } else {
+    btnFicheObjet = '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warnId + '\').classList.add(\'visible\');">📄 Fiche de l\'objet</a>';
+    warningBox = '<div class="warning-box" id="' + warnId + '">Aucune fiche n\'est liée à cet objet, veuillez en créer une pour accéder à ce paramètre.</div>';
+  }
+
+  const btnCreerObjet = objet.lienCreer
+    ? '<a class="btn btn-form" href="' + escapeHtml(objet.lienCreer) + '" target="_blank" rel="noopener">➕ Créer une fiche à l\'objet</a>'
+    : '';
+
+  const btnRetour = '<a class="btn btn-maps" href="#" onclick="event.preventDefault(); ' +
+    'const sel = document.getElementById(' + jsStringLiteral(selectId) + '); if (sel) sel.value = \'\'; ' +
+    'window.__onObjetSelect(' + jsStringLiteral(objetUid) + ', \'\');">↩️ Retour</a>';
+
+  objetBtnsContainer.innerHTML = btnFicheObjet + btnCreerObjet + btnRetour + warningBox;
+  objetBtnsContainer.style.display = 'flex';
+  defaultBtns.style.display = 'none';
+};
+
+// -------------------------------------------------------------------
+// Modale "Travaux" : historique des interventions liées à un ouvrage
+// -------------------------------------------------------------------
+window.showTravauxModal = function (travauxId, nom) {
+  window.closePhotoModal();
+
+  const travaux = window.__travauxStore[travauxId] || [];
+
+  const rowsHtml = travaux.length > 0
+    ? travaux.map(t =>
+        '<tr>' +
+          '<td>' + escapeHtml(t.date || '—') + '</td>' +
+          '<td>' + escapeHtml(t.mecaniqueUsage || '—') + '</td>' +
+          '<td>' + escapeHtml(t.typeAction || '—') + '</td>' +
+          '<td>' + escapeHtml(t.commentaire || '—') + '</td>' +
+        '</tr>'
+      ).join('')
+    : '<tr><td colspan="4" style="text-align:center; color:#888;">Aucune intervention enregistrée pour cet ouvrage.</td></tr>';
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal travaux-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      '<h3>🚧 Historique des interventions — ' + escapeHtml(nom || '') + '</h3>' +
+      '<table class="travaux-table">' +
+        '<thead><tr><th>Date de réalisation</th><th>Mécanique/Usages</th><th>Type d\'action</th><th>Commentaire</th></tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody>' +
+      '</table>' +
+    '</div>';
+  document.body.appendChild(overlay);
+};
+
+// -------------------------------------------------------------------
+// Fiche PDF complète de l'ouvrage (fiche synthétique + toutes les fiches de visite à la suite)
+// -------------------------------------------------------------------
+window.exportOuvragePdf = async function (ouvrageId) {
+  const data = window.__ouvrageStore[ouvrageId];
+  if (!data) return;
+
+  const container = document.getElementById('pdf-export-container');
+  if (!container) return;
+
+  container.innerHTML = '<p>Préparation du document…</p>';
+
+  const photosHtml = await buildPdfPhotosHtml(data.photos);
+
+  const objetsRows = (data.objets || []).map((o, i) =>
+    '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td>' + escapeHtml(o.nom || '—') + '</td>' +
+      '<td>' + escapeHtml(o.type || '—') + '</td>' +
+    '</tr>'
+  ).join('');
+  const objetsTable = (data.objets || []).length > 0
+    ? '<table class="pdf-table"><thead><tr><th>N°</th><th>Libellé de l\'objet</th><th>Type de structure ou élément d\'usages</th></tr></thead><tbody>' + objetsRows + '</tbody></table>'
+    : '<p class="pdf-no-photo">Aucun objet renseigné.</p>';
+
+  const travauxRows = (data.travaux || []).map(t =>
+    '<tr>' +
+      '<td>' + escapeHtml(t.date || '—') + '</td>' +
+      '<td>' + escapeHtml(t.mecaniqueUsage || '—') + '</td>' +
+      '<td>' + escapeHtml(t.typeAction || '—') + '</td>' +
+      '<td>' + escapeHtml(t.commentaire || '—') + '</td>' +
+    '</tr>'
+  ).join('');
+  const travauxTable = (data.travaux || []).length > 0
+    ? '<table class="pdf-table"><thead><tr><th>Date de réalisation</th><th>Mécanique/Usages</th><th>Type d\'action</th><th>Commentaire</th></tr></thead><tbody>' + travauxRows + '</tbody></table>'
+    : '<p class="pdf-no-photo">Aucune intervention enregistrée.</p>';
+
+  const visitsSummaryRows = (data.visits || []).map(v =>
+    '<tr>' +
+      '<td>' + escapeHtml(v.data.date || '—') + '</td>' +
+      '<td>' + letterGradeBadge(v.data.etatStructurel || '—') + '</td>' +
+      '<td>' + letterGradeBadge(v.data.etatSecurite || '—') + '</td>' +
+      '<td>' + escapeHtml(v.data.conditionVisite || '—') + '</td>' +
+      '<td>' + escapeHtml(v.data.description || '—') + '</td>' +
+    '</tr>'
+  ).join('');
+  const visitsSummaryTable = (data.visits || []).length > 0
+    ? '<table class="pdf-table"><thead><tr><th>Date</th><th>État structurel</th><th>État sécurité usager</th><th>Condition de visite</th><th>Conclusions de la visite</th></tr></thead><tbody>' + visitsSummaryRows + '</tbody></table>'
+    : '<p class="pdf-no-photo">Aucune visite enregistrée.</p>';
+
+  // Détail complet de chaque fiche de visite, imprimée intégralement à la suite de la fiche ouvrage
+  let visitsDetailHtml = '';
+  for (const v of (data.visits || [])) {
+    visitsDetailHtml += '<div class="pdf-page-break"></div>' + await buildVisitPdfHtml(v, 'h2');
+  }
+
+  container.innerHTML =
+    '<div class="pdf-header">' +
+      '<h1>Fiche synthétique de l\'ouvrage</h1>' +
+      '<div class="pdf-header-sub">' + escapeHtml(data.nom || '—') + '</div>' +
+    '</div>' +
+    '<table class="pdf-info-table">' +
+      '<tr>' +
+        '<th>Nom de l\'ouvrage</th><td>' + escapeHtml(data.nom || '—') + '</td>' +
+        '<th>Code d\'identification</th><td>' + escapeHtml(data.codeIdentification || '—') + '</td>' +
+      '</tr>' +
+      '<tr>' +
+        '<th>Coordonnées</th><td>' + escapeHtml(data.lat + ', ' + data.lng) + '</td>' +
+        '<th>Indice stratégique</th><td>' + escapeHtml(data.indiceStrategique || '—') + '</td>' +
+      '</tr>' +
+      '<tr>' +
+        '<th>Groupe</th><td>' + escapeHtml(data.classifGroupe || '—') + '</td>' +
+        '<th>Famille</th><td>' + escapeHtml(data.classifFamille || '—') + '</td>' +
+      '</tr>' +
+    '</table>' +
+    '<div class="pdf-section"><h3>Information sur l\'ouvrage</h3><p>' + escapeHtml(data.description || '—') + '</p></div>' +
+    '<div class="pdf-section"><h3>Illustration de l\'ouvrage</h3><div class="pdf-photo-grid">' + photosHtml + '</div></div>' +
+    '<div class="pdf-section"><h3>Décomposition en objets</h3>' + objetsTable + '</div>' +
+    '<div class="pdf-section"><h3>Synthèse des visites</h3>' + visitsSummaryTable + '</div>' +
+    '<div class="pdf-section"><h3>Historique des interventions</h3>' + travauxTable + '</div>' +
+    '<div class="pdf-footer">Carte interactive développée par l\'agence d\'Angers du Cerema</div>' +
+    visitsDetailHtml;
+
+  await waitForImagesToLoad(container);
+  window.print();
+};
+
+// -------------------------------------------------------------------
 // Calendrier des visites prévues
 // -------------------------------------------------------------------
-// La planification (quelle structure est prévue quel jour) N'EST PAS stockée dans une colonne
+// La planification (quel ouvrage est prévue quel jour) N'EST PAS stockée dans une colonne
 // de la table Grist : elle est enregistrée dans les OPTIONS du widget lui-même (grist.setOption /
 // grist.onOptions), ce qui persiste dans le document Grist sans jamais toucher au schéma de la table.
 
@@ -2469,8 +2729,8 @@ window.__calendarAddOptions = [];
 window.__openCalendarAddDialog = function (dateKey) {
   window.__calendarAddDate = dateKey;
 
-  // Liste des structures disponibles (issues des données Grist déjà chargées sur la carte),
-  // dédupliquée par nom (insensible à la casse/espaces) pour qu'une structure n'apparaisse qu'une seule fois,
+  // Liste des ouvrages disponibles (issues des données Grist déjà chargées sur la carte),
+  // dédupliquée par nom (insensible à la casse/espaces) pour qu'un ouvrage n'apparaisse qu'une seule fois,
   // puis triée par nom
   const seenNames = new Set();
   window.__calendarAddOptions = (window.__structureRegistry || [])
@@ -2497,9 +2757,9 @@ window.__openCalendarAddDialog = function (dateKey) {
       '<button class="close-btn" onclick="window.closeCalendarAddDialog()">&times;</button>' +
       '<h3>Ajouter une visite</h3>' +
       '<div class="calendar-add-date">' + escapeHtml(dateLabel) + '</div>' +
-      '<input type="text" id="calendar-add-search" class="calendar-add-search" placeholder="Rechercher une structure..." autocomplete="off" oninput="window.__filterCalendarAddOptions(this.value)" />' +
+      '<input type="text" id="calendar-add-search" class="calendar-add-search" placeholder="Rechercher un ouvrage..." autocomplete="off" oninput="window.__filterCalendarAddOptions(this.value)" />' +
       '<select id="calendar-add-select" class="calendar-add-select" size="8"></select>' +
-      '<div class="calendar-add-empty" id="calendar-add-empty" style="display:none;">Aucune structure trouvée pour cette recherche. Cliquez sur "Ajouter" pour enregistrer tout de même le nom saisi.</div>' +
+      '<div class="calendar-add-empty" id="calendar-add-empty" style="display:none;">Aucun ouvrage trouvé pour cette recherche. Cliquez sur "Ajouter" pour enregistrer tout de même le nom saisi.</div>' +
       '<div class="calendar-add-actions">' +
         '<button class="btn btn-form" onclick="window.__confirmAddVisit()">Ajouter</button>' +
         '<button class="btn btn-maps" onclick="window.closeCalendarAddDialog()">Annuler</button>' +
@@ -2541,7 +2801,7 @@ window.__confirmAddVisit = function () {
     const opt = select.selectedOptions[0];
     entry = { rowId: opt.value ? Number(opt.value) : null, nom: opt.textContent };
   } else if (searchInput && searchInput.value.trim() !== '') {
-    // Aucune structure correspondante dans la liste : le nom tapé est enregistré tel quel
+    // Aucun ouvrage correspondante dans la liste : le nom tapé est enregistré tel quel
     entry = { rowId: null, nom: searchInput.value.trim() };
   }
   if (!entry) { window.closeCalendarAddDialog(); return; }
@@ -2616,7 +2876,7 @@ function attachHoverCard(layer, contentHtml, extraOptions) {
   });
 }
 
-// Crée l'icône d'un marqueur "Structure" : soit une image fournie, soit un pin rouge par défaut
+// Crée l'icône d'un marqueur "Ouvrage" : soit une image fournie, soit un pin rouge par défaut
 function createStructureIcon(imageUrl, color) {
   const url = imageUrl ? String(imageUrl).trim() : '';
   if (url !== '') {
@@ -2654,7 +2914,7 @@ function normalizeForSearch(str) {
   return String(str || '').trim().toLowerCase();
 }
 
-// Affiche uniquement les structures du registre qui satisfont le prédicat ; ajuste la vue
+// Affiche uniquement les ouvrages du registre qui satisfont le prédicat ; ajuste la vue
 function applyStructureFilter(predicate) {
   structureLayerGroup.clearLayers();
   const matchedLatLngs = [];
@@ -2679,7 +2939,7 @@ function resetStructureFilter() {
 }
 
 // -------------------------------------------------------------------
-// Mode visite : masque les domaines et n'affiche que les structures
+// Mode visite : masque les domaines et n'affiche que les ouvrages
 // dont une visite est programmée au jour choisi (calendrier)
 // -------------------------------------------------------------------
 
@@ -2779,7 +3039,7 @@ window.__confirmVisitModeDate = function () {
   applyVisitModeFilter();
 };
 
-// Filtre la carte pour ne garder que les structures ayant une visite programmée à visitModeDate
+// Filtre la carte pour ne garder que les ouvrages ayant une visite programmée à visitModeDate
 function applyVisitModeFilter() {
   if (!visitModeDate) return;
 
@@ -2815,7 +3075,7 @@ window.__onStructureSearchInput = function (value) {
   applyStructureFilter(entry => normalizeForSearch(entry.nom).includes(q));
 };
 
-// Va directement à la structure sur la carte (zoom + ouverture de son encadré)
+// Va directement à l\'ouvrage sur la carte (zoom + ouverture de son encadré)
 window.__goToStructure = function (idx) {
   const entry = window.__structureRegistry[idx];
   if (!entry || !entry.marker) return;
@@ -2841,7 +3101,7 @@ window.__toggleTreePanel = function () {
   if (treeDiv) treeDiv.classList.toggle('open');
 };
 
-// (Re)construit le panneau de recherche : arbre en cascade Domaine > Famille > Groupe > Structure(s)
+// (Re)construit le panneau de recherche : arbre en cascade Domaine > Famille > Groupe > Ouvrage(s)
 function buildSearchPanel() {
   let panel = document.getElementById('structure-search-panel');
   if (!panel) {
@@ -2856,7 +3116,7 @@ function buildSearchPanel() {
   const domaineTree = new Map();
   const rootFamilies = new Map();
 
-  // Ajoute une combinaison domaine/famille/groupe (avec ou sans structure associée) dans l'arbre
+  // Ajoute une combinaison domaine/famille/groupe (avec ou sans ouvrage associé) dans l'arbre
   function addToTree(domaine, famille, groupe, structureIdx) {
     const f = famille && famille.trim() ? famille.trim() : 'Non renseigné';
     const g = groupe && groupe.trim() ? groupe.trim() : 'Non renseigné';
@@ -2878,7 +3138,7 @@ function buildSearchPanel() {
 
   window.__structureRegistry.forEach((entry, idx) => {
     // entry.domaine est un tableau (une Famille peut appartenir à plusieurs Domaines) :
-    // la structure doit apparaître sous chacun d'eux, ou à la racine si aucun domaine trouvé.
+    // l\'ouvrage doit apparaître sous chacun d'eux, ou à la racine si aucun domaine trouvé.
     const domainesEntry = Array.isArray(entry.domaine) ? entry.domaine : (entry.domaine ? [entry.domaine] : []);
     if (domainesEntry.length === 0) {
       addToTree('', entry.famille, entry.groupe, idx);
@@ -2886,7 +3146,7 @@ function buildSearchPanel() {
       domainesEntry.forEach(d => addToTree(d, entry.famille, entry.groupe, idx));
     }
   });
-  // Ajoute aussi les combinaisons sans structure associée (ex : base Famille/Groupe séparée)
+  // Ajoute aussi les combinaisons sans ouvrage associé (ex : base Famille/Groupe séparée)
   (window.__allClassifPairs || []).forEach(pair => {
     addToTree(pair.domaine, pair.famille, pair.groupe, null);
   });
@@ -2894,12 +3154,12 @@ function buildSearchPanel() {
   function renderStructureLeaf(idx) {
     const entry = window.__structureRegistry[idx];
     return '<div class="tree-row tree-structure" onclick="window.__goToStructure(' + idx + ')">' +
-      '<span class="tree-arrow"></span><span class="tree-label">📍 ' + escapeHtml(entry.nom || 'Structure') + '</span>' +
+      '<span class="tree-arrow"></span><span class="tree-label">📍 ' + escapeHtml(entry.nom || 'Ouvrage') + '</span>' +
     '</div>';
   }
 
   function renderGroupe(groupe, idxList) {
-    // Déduplique par nom normalisé : une même structure ne doit apparaître qu'une fois,
+    // Déduplique par nom normalisé : une même ouvrage ne doit apparaître qu'une fois,
     // peu importe le nombre de visites (lignes) qui lui sont associées.
     const seenNames = new Set();
     const dedupedIdxList = idxList.filter(idx => {
@@ -2912,7 +3172,7 @@ function buildSearchPanel() {
 
     const structuresHtml = dedupedIdxList.length > 0
       ? dedupedIdxList.map(renderStructureLeaf).join('')
-      : '<div class="tree-empty-msg">Aucune structure n\'est associée aux paramètres sélectionnés.</div>';
+      : '<div class="tree-empty-msg">Aucun ouvrage n\'est associé aux paramètres sélectionnés.</div>';
     return (
       '<div class="tree-groupe">' +
         '<div class="tree-row">' +
@@ -2960,12 +3220,12 @@ function buildSearchPanel() {
 
   panel.innerHTML =
     '<div class="structure-search-row">' +
-      '<input type="text" id="structure-search-input" placeholder="Rechercher une ou des structures" oninput="window.__onStructureSearchInput(this.value)" />' +
+      '<input type="text" id="structure-search-input" placeholder="Rechercher une ou des ouvrages" oninput="window.__onStructureSearchInput(this.value)" />' +
       '<button class="structure-search-toggle" onclick="window.__toggleTreePanel()">▾</button>' +
     '</div>' +
     '<div class="structure-tree" id="structure-tree">' + treeHtml + '</div>' +
-    '<div id="structure-no-result" class="structure-no-result">Aucune structure n\'est associée aux paramètres sélectionnés.</div>' +
-    '<div class="structure-search-reset" onclick="window.__resetStructureSearch()">Afficher toutes les structures</div>';
+    '<div id="structure-no-result" class="structure-no-result">Aucun ouvrage n\'est associé aux paramètres sélectionnés.</div>' +
+    '<div class="structure-search-reset" onclick="window.__resetStructureSearch()">Afficher tous les ouvrages</div>';
 }
 
 async function drawRecords(records, mappings) {
@@ -2981,7 +3241,7 @@ async function drawRecords(records, mappings) {
     console.error('Impossible de récupérer le jeton d\'accès Grist pour les pièces jointes :', e);
   }
 
-  // Grilles d'évaluation : communes à toutes les structures, lues une seule fois depuis la 1ère ligne du tableau
+  // Grilles d'évaluation : communes à tous les ouvrages, lues une seule fois depuis la 1ère ligne du tableau
   const grilleEvalGlobalId = 'grille-eval-global';
   if (records.length > 0) {
     const firstMapped = grist.mapColumnNames(records[0]) || records[0];
@@ -2992,11 +3252,11 @@ async function drawRecords(records, mappings) {
   }
 
   // Liste des polygones de domaine (remplie pendant leur traitement ci-dessous), utilisée ensuite
-  // pour détecter automatiquement dans quel domaine se trouve chaque structure
+  // pour détecter automatiquement dans quel domaine se trouve chaque ouvrage
   const domainePolygonsGlobal = [];
 
   // Recense TOUTES les combinaisons Domaine/Famille/Groupe de la liste de référence (colonnes dédiées,
-  // séparées des colonnes Famille/Groupe des structures). Reliées entre elles par ligne (champ rapporté),
+  // séparées des colonnes Famille/Groupe des ouvrages). Reliées entre elles par ligne (champ rapporté),
   // ce qui est légitime ici puisque c'est justement la "base" Famille/Groupe/Domaine.
   // Une famille peut appartenir à jusqu'à 5 domaines (5 colonnes) : elle apparaîtra sous chacun d'eux.
   window.__allClassifPairs = [];
@@ -3026,10 +3286,10 @@ async function drawRecords(records, mappings) {
 
   // Table de correspondance Famille -> Domaine(s), construite à partir du bloc de référence
   // (FamilleRefListe / DomaineRefListe1-5, placés côte à côte sur les mêmes lignes de ce bloc).
-  // Sert à retrouver le(s) domaine(s) d'une structure via sa Famille (colonne "structure" à gauche),
-  // SANS jamais relier ce bloc de référence (à droite) à une structure par simple position de ligne
+  // Sert à retrouver le(s) domaine(s) d'un ouvrage via sa Famille (colonne "ouvrage" à gauche),
+  // SANS jamais relier ce bloc de référence (à droite) à un ouvrage par simple position de ligne
   // (les colonnes grisées "-" séparent volontairement les deux blocs dans le tableau Grist).
-  // Une Famille peut appartenir à plusieurs Domaines : la structure apparaîtra alors sous chacun d'eux.
+  // Une Famille peut appartenir à plusieurs Domaines : l\'ouvrage apparaîtra alors sous chacun d'eux.
   window.__familleToDomaines = new Map();
   (window.__allClassifPairs || []).forEach(pair => {
     const fKey = pair.famille.trim().toLowerCase();
@@ -3044,7 +3304,7 @@ async function drawRecords(records, mappings) {
   }
 
   // Recense la liste EXHAUSTIVE des Familles et des Groupes depuis les colonnes de référence dédiées
-  // (indépendantes des structures), pour que le menu déroulant propose absolument tout.
+  // (indépendantes des ouvrages), pour que le menu déroulant propose absolument tout.
   window.__allFamilleNames = new Set();
   window.__allGroupeNames = new Set();
   records.forEach(record => {
@@ -3110,8 +3370,8 @@ async function drawRecords(records, mappings) {
     }
   });
 
-  // ------------------ Groupe "Structure" (point) : regroupement par nom / coordonnées ------------------
-  // Plusieurs lignes peuvent partager le même nom et/ou les mêmes coordonnées GPS (ex : la structure
+  // ------------------ Groupe "Ouvrage" (point) : regroupement par nom / coordonnées ------------------
+  // Plusieurs lignes peuvent partager le même nom et/ou les mêmes coordonnées GPS (ex : l\'ouvrage
   // est décrite une fois, mais peut aussi apparaître sur plusieurs lignes).
   const structureGroups = new Map();
   records.forEach((record, index) => {
@@ -3122,11 +3382,11 @@ async function drawRecords(records, mappings) {
       if (!structureGroups.has(key)) structureGroups.set(key, []);
       structureGroups.get(key).push({ mapped, rowId: record.id });
     } catch (err) {
-      console.error('Erreur (regroupement structure) ligne ' + index + ' :', err, record);
+      console.error('Erreur (regroupement ouvrage) ligne ' + index + ' :', err, record);
     }
   });
 
-  // Table de correspondance : nom de structure normalisé -> clé de groupe (pour relier les visites par nom)
+  // Table de correspondance : nom d\'ouvrage normalisé -> clé de groupe (pour relier les visites par nom)
   const nameToGroupKey = new Map();
   structureGroups.forEach((entries, key) => {
     entries.forEach(e => {
@@ -3136,8 +3396,8 @@ async function drawRecords(records, mappings) {
   });
 
   // ------------------ Visites : collectées sur TOUTES les lignes, reliées par nom (pas par position de ligne) ------------------
-  // Une visite est reliée à sa structure via le champ "Nom complet structure" qui doit correspondre
-  // (au nom près, insensible à la casse/espaces) au champ "Nom" de la structure.
+  // Une visite est reliée à sa ouvrage via le champ "Nom complet ouvrage" qui doit correspondre
+  // (au nom près, insensible à la casse/espaces) au champ "Nom" de l\'ouvrage.
   const visitsByGroupKey = new Map();
   records.forEach((record, index) => {
     try {
@@ -3149,6 +3409,9 @@ async function drawRecords(records, mappings) {
       const ficheDescription = mapped.DescriptionFiche || '';
       const ficheEtatStructurel = mapped.EtatStructurelFiche || '';
       const ficheEtatSecurite = mapped.EtatSecuriteUsagerFiche || '';
+      const ficheConditionVisite = mapped.ConditionVisiteFiche || '';
+      const ficheDesordreMecanique = mapped.DesordreMecaniqueFiche || '';
+      const ficheDesordreUsage = mapped.DesordreUsageFiche || '';
       const fichePhotos = [
         { url: mapped.PhotoFiche1 || '', desc: mapped.DescriptionPhotoFiche1 || '' },
         { url: mapped.PhotoFiche2 || '', desc: mapped.DescriptionPhotoFiche2 || '' },
@@ -3158,17 +3421,18 @@ async function drawRecords(records, mappings) {
       ];
       const fichePhotoPresente = fichePhotos.some(p => Array.isArray(p.url) ? p.url.length > 0 : !!p.url);
       const ficheExiste = !!(ficheInspecteurs || ficheDate || ficheNomComplet || ficheDescription ||
-        ficheEtatStructurel || ficheEtatSecurite || fichePhotoPresente);
+        ficheEtatStructurel || ficheEtatSecurite || ficheConditionVisite || ficheDesordreMecanique ||
+        ficheDesordreUsage || fichePhotoPresente);
       if (!ficheExiste) return; // cette ligne ne contient aucune donnée de visite
 
       const normalizedName = ficheNomComplet.toString().trim().toLowerCase();
       if (!normalizedName) {
-        console.warn('Visite ligne ' + index + ' ignorée : le champ "Nom complet structure" est vide, impossible de la relier à une structure.', record);
+        console.warn('Visite ligne ' + index + ' ignorée : le champ "Nom complet ouvrage" est vide, impossible de la relier à un ouvrage.', record);
         return;
       }
       const matchedKey = nameToGroupKey.get(normalizedName);
       if (!matchedKey) {
-        console.warn('Visite ligne ' + index + ' ignorée : aucune structure ne correspond au nom "' + ficheNomComplet + '".', record);
+        console.warn('Visite ligne ' + index + ' ignorée : aucun ouvrage ne correspond au nom "' + ficheNomComplet + '".', record);
         return;
       }
 
@@ -3183,11 +3447,53 @@ async function drawRecords(records, mappings) {
           description: ficheDescription,
           etatStructurel: ficheEtatStructurel,
           etatSecurite: ficheEtatSecurite,
+          conditionVisite: ficheConditionVisite,
+          desordreMecanique: ficheDesordreMecanique,
+          desordreUsage: ficheDesordreUsage,
           photos: fichePhotos
         }
       });
     } catch (err) {
       console.error('Erreur (collecte visite) ligne ' + index + ' :', err, record);
+    }
+  });
+
+  // ------------------ Travaux / interventions : reliés par nom, comme les visites ------------------
+  const travauxByGroupKey = new Map();
+  records.forEach((record, index) => {
+    try {
+      const mapped = grist.mapColumnNames(record) || record;
+
+      const travailDate = mapped.DateTravail || '';
+      const travailMecaniqueUsage = formatTextValue(mapped.MecaniqueUsageTravail);
+      const travailTypeAction = formatTextValue(mapped.TypeActionTravail);
+      const travailCommentaire = mapped.CommentaireTravail || '';
+      const travailNomOuvrage = mapped.NomOuvrageTravail || '';
+
+      const travailExiste = !!(travailDate || travailMecaniqueUsage || travailTypeAction || travailCommentaire);
+      if (!travailExiste) return;
+
+      const normalizedName = travailNomOuvrage.toString().trim().toLowerCase();
+      if (!normalizedName) {
+        console.warn('Travaux ligne ' + index + ' ignoré : le champ "Nom ouvrage" est vide, impossible de le relier.', record);
+        return;
+      }
+      const matchedKey = nameToGroupKey.get(normalizedName);
+      if (!matchedKey) {
+        console.warn('Travaux ligne ' + index + ' ignoré : aucun ouvrage ne correspond au nom "' + travailNomOuvrage + '".', record);
+        return;
+      }
+
+      if (!travauxByGroupKey.has(matchedKey)) travauxByGroupKey.set(matchedKey, []);
+      travauxByGroupKey.get(matchedKey).push({
+        parsedDate: parseVisitDate(travailDate),
+        date: travailDate,
+        mecaniqueUsage: travailMecaniqueUsage,
+        typeAction: travailTypeAction,
+        commentaire: travailCommentaire
+      });
+    } catch (err) {
+      console.error('Erreur (collecte travaux) ligne ' + index + ' :', err, record);
     }
   });
 
@@ -3211,18 +3517,18 @@ async function drawRecords(records, mappings) {
       const lng = primary.lng;
 
       const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
-      const nom = mapped.NomStructure || 'Structure';
+      const nom = mapped.NomStructure || 'Ouvrage';
       const imageSrc = resolveImageValue(mapped.ImageStructure, tokenInfo);
 
-      // Domaine(s) de cette structure : retrouvé(s) via sa Famille dans le bloc de référence
+      // Domaine(s) de cet ouvrage : retrouvé(s) via sa Famille dans le bloc de référence
       // (une Famille peut appartenir à plusieurs Domaines), jamais lu directement sur cette ligne.
       const familleStructureNom = formatTextValue(mapped.FamilleStructure);
       const domainesStructure = getDomainesForFamille(familleStructureNom);
 
-      // Enregistre cette structure dans le registre global (utilisé par le panneau de recherche)
+      // Enregistre cet ouvrage dans le registre global (utilisé par le panneau de recherche)
       window.__structureRegistry.push({
         marker: null, // renseigné juste après la création du marqueur
-        rowId: rowId, // identifiant de la ligne Grist "principale" de cette structure (utilisé par le calendrier)
+        rowId: rowId, // identifiant de la ligne Grist "principale" de cet ouvrage (utilisé par le calendrier)
         nom: nom,
         domaine: domainesStructure, // tableau : une Famille peut appartenir à plusieurs Domaines
         famille: familleStructureNom,
@@ -3244,7 +3550,7 @@ async function drawRecords(records, mappings) {
       const lienFormulaire = mapped.LienFormulaireStructure || '';
       const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
 
-      // Visites reliées à cette structure par nom (collectées indépendamment de la position de ligne)
+      // Visites reliées à cet ouvrage par nom (collectées indépendamment de la position de ligne)
       const visits = visitsByGroupKey.get(key) || [];
 
       // Trie les visites de la plus récente à la plus ancienne (les dates non reconnues passent en dernier)
@@ -3256,7 +3562,7 @@ async function drawRecords(records, mappings) {
       });
 
       // État et Sécurité proviennent de la dernière visite (fiche visite la plus récente),
-      // pas des colonnes de la structure elle-même : ces 2 colonnes sont liées aux visites.
+      // pas des colonnes de l\'ouvrage elle-même : ces 2 colonnes sont liées aux visites.
       const derniereVisite = visits.length > 0 ? visits[0] : null;
       const etat = (derniereVisite && derniereVisite.data.etatStructurel) || '—';
       const securite = (derniereVisite && derniereVisite.data.etatSecurite) || '—';
@@ -3280,7 +3586,7 @@ async function drawRecords(records, mappings) {
         warningBox = '<div class="warning-box" id="' + warningId + '">Il n\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.</div>';
       }
 
-      // Stockage des 4 emplacements photo "initiale" de la structure (pris sur l'entrée principale)
+      // Stockage des 4 emplacements photo "initiale" de l\'ouvrage (pris sur l'entrée principale)
       const photoStructureId = 'photo-structure-' + Math.random().toString(36).slice(2);
       window.__photoStore[photoStructureId] = [
         { url: mapped.Photo1Structure || '', desc: mapped.DescriptionPhoto1Structure || '' },
@@ -3289,26 +3595,79 @@ async function drawRecords(records, mappings) {
         { url: mapped.Photo4Structure || '', desc: mapped.DescriptionPhoto4Structure || '' }
       ];
 
+      // Stockage des travaux (interventions) reliés à cet ouvrage, triés du plus récent au plus ancien
+      const travaux = (travauxByGroupKey.get(key) || []).slice().sort((a, b) => {
+        if (a.parsedDate && b.parsedDate) return b.parsedDate - a.parsedDate;
+        if (a.parsedDate) return -1;
+        if (b.parsedDate) return 1;
+        return 0;
+      });
+      const travauxId = 'travaux-' + Math.random().toString(36).slice(2);
+      window.__travauxStore[travauxId] = travaux;
+
+      // Stockage des objets liés à l'ouvrage (jusqu'à 6), pour le menu déroulant
+      const objetUid = 'objet-' + Math.random().toString(36).slice(2);
+      const objetsListe = [1, 2, 3, 4, 5, 6].map(n => ({
+        nom: formatTextValue(mapped['Objet' + n + 'Nom']),
+        type: formatTextValue(mapped['Objet' + n + 'Type']),
+        lienFiche: mapped['Objet' + n + 'LienFiche'] || '',
+        lienCreer: mapped['Objet' + n + 'LienCreer'] || ''
+      })).filter(o => o.nom);
+      window.__objetsStore[objetUid] = objetsListe;
+
+      const objetOptionsHtml = objetsListe.map(o =>
+        '<option value="' + escapeHtml(o.nom) + '">' + escapeHtml(o.nom) + (o.type ? ' (' + escapeHtml(o.type) + ')' : '') + '</option>'
+      ).join('');
+      const objetSelectHtml = objetsListe.length > 0
+        ? '<select class="objet-select" id="select-' + objetUid + '" onchange="window.__onObjetSelect(\'' + objetUid + '\', this.value)">' +
+            '<option value="">— Sélectionner un objet —</option>' + objetOptionsHtml +
+          '</select>'
+        : '';
+
       const etatHtml = letterGradeBadge(etat);
       const securiteHtml = letterGradeBadge(securite);
+
+      // Stocke les données nécessaires à la fiche PDF complète de l'ouvrage
+      const ouvrageId = 'ouvrage-' + Math.random().toString(36).slice(2);
+      window.__ouvrageStore[ouvrageId] = {
+        nom: nom,
+        rowId: rowId,
+        lat: lat,
+        lng: lng,
+        domaineGeo: domaineGeo,
+        classifDomaine: classifDomaine,
+        classifFamille: classifFamille,
+        classifGroupe: classifGroupe,
+        description: mapped.DescriptionOuvrage || '',
+        codeIdentification: mapped.CodeIdentificationOuvrage || '',
+        indiceStrategique: mapped.IndiceStrategiqueOuvrage || '',
+        photos: window.__photoStore[photoStructureId],
+        objets: objetsListe,
+        travaux: travaux,
+        visits: visits
+      };
 
       const cardHtml =
         '<div class="structure-card">' +
           '<h3>' + escapeHtml(nom) + '</h3>' +
-          '<div class="structure-num">Structure n°' + escapeHtml(rowId) + '</div>' +
+          '<div class="structure-num">Ouvrage n°' + escapeHtml(rowId) + '</div>' +
           '<div class="row"><b>Domaine géographique :</b> ' + escapeHtml(domaineGeo) + '</div>' +
           '<div class="row"><b>Domaine :</b> ' + escapeHtml(classifDomaine) + '</div>' +
           '<div class="row"><b>Famille :</b> ' + escapeHtml(classifFamille) + '</div>' +
           '<div class="row"><b>Groupe :</b> ' + escapeHtml(classifGroupe) + '</div>' +
           '<div class="row"><b>État :</b> ' + etatHtml + '</div>' +
           '<div class="row"><b>Sécurité :</b> ' + securiteHtml + '</div>' +
-          '<div class="buttons">' +
+          objetSelectHtml +
+          '<div class="buttons" id="btns-default-' + objetUid + '">' +
             btnFiche +
             (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
             '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
-            '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de la structure</a>' +
+            '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de l\'ouvrage</a>' +
             '<a class="btn btn-form" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + grilleEvalGlobalId + '\', ' + jsStringLiteral('Grilles d\'évaluation') + ');">📋 Grilles d\'évaluation Etat structurel / Etat sécurité usagers</a>' +
+            '<a class="btn btn-travaux" href="#" onclick="event.preventDefault(); window.showTravauxModal(\'' + travauxId + '\', ' + jsStringLiteral(nom) + ');">🚧 Travaux</a>' +
+            '<a class="btn btn-pdf-ouvrage" href="#" onclick="event.preventDefault(); window.exportOuvragePdf(\'' + ouvrageId + '\');">📥 Télécharger la fiche PDF</a>' +
           '</div>' +
+          '<div class="buttons objet-buttons" id="btns-objet-' + objetUid + '" style="display:none;"></div>' +
           warningBox +
         '</div>';
 
@@ -3316,7 +3675,7 @@ async function drawRecords(records, mappings) {
 
       bounds.push([lat, lng]);
     } catch (err) {
-      console.error('Erreur lors du traitement du groupe de structure "' + key + '" :', err);
+      console.error('Erreur lors du traitement du groupe d\'ouvrage "' + key + '" :', err);
     }
   });
 
@@ -3361,38 +3720,42 @@ grist.ready({
     { name: 'DescriptionPhotoDomaine', title: '🟩 Domaine/Parc — Description photo', type: 'Text', optional: true,
       description: 'Légende affichée sous la photo' },
 
-    // ---- Groupe "Structure" (point) ----
-    { name: 'NomStructure', title: '🟥 Structure — Nom', type: 'Text', optional: true,
-      description: 'Nom de la structure (titre de l\'encadré au survol)' },
-    { name: 'Latitude', title: '🟥 Structure — Latitude', type: 'Numeric,Int,Text,Any', optional: true },
-    { name: 'Longitude', title: '🟥 Structure — Longitude', type: 'Numeric,Int,Text,Any', optional: true },
-    { name: 'DomaineStructure', title: '🟥 Structure — Domaine géographique (manuel, repli)', type: 'Text', optional: true,
-      description: 'Utilisé seulement si aucun polygone de domaine ne contient la structure' },
-    { name: 'FamilleStructure', title: '🟥 Structure — Famille (colonne de LA FAMILLE de cette structure)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
-      description: 'Sélectionne précisément la colonne qui contient la famille de la structure (texte, choix, ou champ rapporté)' },
-    { name: 'GroupeStructure', title: '🟥 Structure — Groupe (colonne du GROUPE de cette structure)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
-      description: 'Sélectionne précisément la colonne qui contient le groupe de la structure (texte, choix, ou champ rapporté)' },
-    { name: 'DomaineRefListe1', title: '🟥 Structure — Domaine 1 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
+    // ---- Groupe "Ouvrage" (point) ----
+    { name: 'NomStructure', title: '🟥 Ouvrage — Nom', type: 'Text', optional: true,
+      description: 'Nom de l\'ouvrage (titre de l\'encadré au survol)' },
+    { name: 'Latitude', title: '🟥 Ouvrage — Latitude', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Longitude', title: '🟥 Ouvrage — Longitude', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'DomaineStructure', title: '🟥 Ouvrage — Domaine géographique (manuel, repli)', type: 'Text', optional: true,
+      description: 'Utilisé seulement si aucun polygone de domaine ne contient l\'ouvrage' },
+    { name: 'FamilleStructure', title: '🟥 Ouvrage — Famille (colonne de LA FAMILLE de cet ouvrage)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
+      description: 'Sélectionne précisément la colonne qui contient la famille de l\'ouvrage (texte, choix, ou champ rapporté)' },
+    { name: 'GroupeStructure', title: '🟥 Ouvrage — Groupe (colonne du GROUPE de cet ouvrage)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
+      description: 'Sélectionne précisément la colonne qui contient le groupe de l\'ouvrage (texte, choix, ou champ rapporté)' },
+    { name: 'DomaineRefListe1', title: '🟥 Ouvrage — Domaine 1 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
       description: 'Un des domaines auquel appartient cette Famille sur cette ligne (jusqu\'à 5 colonnes domaine)' },
-    { name: 'DomaineRefListe2', title: '🟥 Structure — Domaine 2 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
-    { name: 'DomaineRefListe3', title: '🟥 Structure — Domaine 3 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
-    { name: 'DomaineRefListe4', title: '🟥 Structure — Domaine 4 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
-    { name: 'DomaineRefListe5', title: '🟥 Structure — Domaine 5 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'DomaineRefListe2', title: '🟥 Ouvrage — Domaine 2 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'DomaineRefListe3', title: '🟥 Ouvrage — Domaine 3 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'DomaineRefListe4', title: '🟥 Ouvrage — Domaine 4 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'DomaineRefListe5', title: '🟥 Ouvrage — Domaine 5 (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
     { name: 'FamilleRefListe', title: '🟦 Référence — Toutes les Familles', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
-      description: 'Colonne listant TOUTES les familles possibles (même sans structure assignée), pour l\'arbre de recherche' },
+      description: 'Colonne listant TOUTES les familles possibles (même sans ouvrage assigné), pour l\'arbre de recherche' },
     { name: 'GroupeRefListe', title: '🟦 Référence — Tous les Groupes (rapporté depuis la Famille)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
       description: 'Colonne listant TOUS les groupes possibles, reliée à sa Famille sur la même ligne' },
     { name: 'DomaineClassification', title: '🟦 Référence — Domaine (classification)', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true,
       description: 'Utilisé pour le filtre de recherche (arbre Domaine > Famille > Groupe)' },
-    { name: 'LienFicheStructure', title: '🟥 Structure — Lien fiche visite (URL, optionnel)', type: 'Text', optional: true,
+    { name: 'LienFicheStructure', title: '🟥 Ouvrage — Lien fiche visite (URL, optionnel)', type: 'Text', optional: true,
       description: 'Si rempli : ouvre ce lien externe au clic. Sinon, affiche la fiche interne ci-dessous.' },
     { name: 'InspecteursFiche', title: '🟥 Fiche visite — Inspecteur(s)', type: 'Text,Choice,ChoiceList,Reference,ReferenceList,Any', optional: true,
       description: 'Nom et/ou adresse e-mail de l\'inspecteur (tout format accepté)' },
     { name: 'DateVisiteFiche', title: '🟥 Fiche visite — Date de la visite', type: 'Text,Date,DateTime,Any', optional: true },
-    { name: 'NomCompletStructureFiche', title: '🟥 Fiche visite — Nom complet structure', type: 'Text', optional: true },
+    { name: 'NomCompletStructureFiche', title: '🟥 Fiche visite — Nom complet ouvrage', type: 'Text', optional: true },
     { name: 'DescriptionFiche', title: '🟥 Fiche visite — Description', type: 'Text', optional: true },
     { name: 'EtatStructurelFiche', title: '🟥 Fiche visite — État structurel', type: 'Text', optional: true },
     { name: 'EtatSecuriteUsagerFiche', title: '🟥 Fiche visite — État sécurité usager', type: 'Text', optional: true },
+    { name: 'ConditionVisiteFiche', title: '🟥 Fiche visite — Condition de visite', type: 'Text', optional: true,
+      description: 'Ex : météo, accès, conditions particulières lors de la visite' },
+    { name: 'DesordreMecaniqueFiche', title: '🟥 Fiche visite — Désordre(s) mécanique', type: 'Text', optional: true },
+    { name: 'DesordreUsageFiche', title: '🟥 Fiche visite — Désordre(s) d\'usage', type: 'Text', optional: true },
     { name: 'PhotoFiche1', title: '🟥 Fiche visite — Photo 1', type: 'Text,Attachments', optional: true },
     { name: 'DescriptionPhotoFiche1', title: '🟥 Fiche visite — Description photo 1', type: 'Text', optional: true },
     { name: 'PhotoFiche2', title: '🟥 Fiche visite — Photo 2', type: 'Text,Attachments', optional: true },
@@ -3403,30 +3766,68 @@ grist.ready({
     { name: 'DescriptionPhotoFiche4', title: '🟥 Fiche visite — Description photo 4', type: 'Text', optional: true },
     { name: 'PhotoFiche5', title: '🟥 Fiche visite — Photo 5', type: 'Text,Attachments', optional: true },
     { name: 'DescriptionPhotoFiche5', title: '🟥 Fiche visite — Description photo 5', type: 'Text', optional: true },
-    { name: 'LienFormulaireStructure', title: '🟥 Structure — Lien formulaire (URL)', type: 'Text', optional: true,
+    { name: 'LienFormulaireStructure', title: '🟥 Ouvrage — Lien formulaire (URL)', type: 'Text', optional: true,
       description: 'URL vers le formulaire "créer une fiche visite" (peut être la même URL pour toutes les lignes)' },
-    { name: 'Photo1Structure', title: '🟥 Structure — Photo 1', type: 'Text,Attachments', optional: true,
+    { name: 'Photo1Structure', title: '🟥 Ouvrage — Photo 1', type: 'Text,Attachments', optional: true,
       description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
-    { name: 'DescriptionPhoto1Structure', title: '🟥 Structure — Description photo 1', type: 'Text', optional: true },
-    { name: 'Photo2Structure', title: '🟥 Structure — Photo 2', type: 'Text,Attachments', optional: true,
+    { name: 'DescriptionPhoto1Structure', title: '🟥 Ouvrage — Description photo 1', type: 'Text', optional: true },
+    { name: 'Photo2Structure', title: '🟥 Ouvrage — Photo 2', type: 'Text,Attachments', optional: true,
       description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
-    { name: 'DescriptionPhoto2Structure', title: '🟥 Structure — Description photo 2', type: 'Text', optional: true },
-    { name: 'Photo3Structure', title: '🟥 Structure — Photo 3', type: 'Text,Attachments', optional: true,
+    { name: 'DescriptionPhoto2Structure', title: '🟥 Ouvrage — Description photo 2', type: 'Text', optional: true },
+    { name: 'Photo3Structure', title: '🟥 Ouvrage — Photo 3', type: 'Text,Attachments', optional: true,
       description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
-    { name: 'DescriptionPhoto3Structure', title: '🟥 Structure — Description photo 3', type: 'Text', optional: true },
-    { name: 'Photo4Structure', title: '🟥 Structure — Photo 4', type: 'Text,Attachments', optional: true,
+    { name: 'DescriptionPhoto3Structure', title: '🟥 Ouvrage — Description photo 3', type: 'Text', optional: true },
+    { name: 'Photo4Structure', title: '🟥 Ouvrage — Photo 4', type: 'Text,Attachments', optional: true,
       description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
-    { name: 'DescriptionPhoto4Structure', title: '🟥 Structure — Description photo 4', type: 'Text', optional: true },
-    { name: 'ImageStructure', title: '🟥 Structure — Image du pin', type: 'Text,Attachments', optional: true,
+    { name: 'DescriptionPhoto4Structure', title: '🟥 Ouvrage — Description photo 4', type: 'Text', optional: true },
+    { name: 'ImageStructure', title: '🟥 Ouvrage — Image du pin', type: 'Text,Attachments', optional: true,
       description: 'URL d\'une image OU colonne "Pièce jointe" Grist (ex: pont). Si vide -> pin rouge par défaut.' },
-    { name: 'GrilleEval1Structure', title: '🟥 Structure — Grille éval. 1 (État structurel)', type: 'Text,Attachments', optional: true,
+    { name: 'GrilleEval1Structure', title: '🟥 Ouvrage — Grille éval. 1 (État structurel)', type: 'Text,Attachments', optional: true,
       description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
-    { name: 'DescriptionGrilleEval1Structure', title: '🟥 Structure — Description grille éval. 1', type: 'Text', optional: true },
-    { name: 'GrilleEval2Structure', title: '🟥 Structure — Grille éval. 2 (Sécurité usagers)', type: 'Text,Attachments', optional: true,
+    { name: 'DescriptionGrilleEval1Structure', title: '🟥 Ouvrage — Description grille éval. 1', type: 'Text', optional: true },
+    { name: 'GrilleEval2Structure', title: '🟥 Ouvrage — Grille éval. 2 (Sécurité usagers)', type: 'Text,Attachments', optional: true,
       description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
-    { name: 'DescriptionGrilleEval2Structure', title: '🟥 Structure — Description grille éval. 2', type: 'Text', optional: true },
-    { name: 'CouleurStructure', title: '🟥 Structure — Couleur du pin', type: 'Text', optional: true,
-      description: 'Utilisée seulement si pas d\'image. Ex : #1565c0 (sinon rouge par défaut)' }
+    { name: 'DescriptionGrilleEval2Structure', title: '🟥 Ouvrage — Description grille éval. 2', type: 'Text', optional: true },
+    { name: 'CouleurStructure', title: '🟥 Ouvrage — Couleur du pin', type: 'Text', optional: true,
+      description: 'Utilisée seulement si pas d\'image. Ex : #1565c0 (sinon rouge par défaut)' },
+    { name: 'DescriptionOuvrage', title: '🟥 Ouvrage — Information / Description', type: 'Text', optional: true,
+      description: 'Texte descriptif de l\'ouvrage (affiché dans la fiche PDF, section "Information sur l\'ouvrage")' },
+    { name: 'CodeIdentificationOuvrage', title: '🟥 Ouvrage — Code d\'identification', type: 'Text,Numeric,Int,Any', optional: true },
+    { name: 'IndiceStrategiqueOuvrage', title: '🟥 Ouvrage — Indice stratégique', type: 'Text,Numeric,Int,Any', optional: true },
+
+    // ---- Groupe "Objets liés à l'ouvrage" (jusqu'à 6, pour le menu déroulant de l'encadré) ----
+    { name: 'Objet1Nom', title: '🟨 Objet 1 — Nom', type: 'Text', optional: true },
+    { name: 'Objet1Type', title: '🟨 Objet 1 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet1LienFiche', title: '🟨 Objet 1 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet1LienCreer', title: '🟨 Objet 1 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet2Nom', title: '🟨 Objet 2 — Nom', type: 'Text', optional: true },
+    { name: 'Objet2Type', title: '🟨 Objet 2 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet2LienFiche', title: '🟨 Objet 2 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet2LienCreer', title: '🟨 Objet 2 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet3Nom', title: '🟨 Objet 3 — Nom', type: 'Text', optional: true },
+    { name: 'Objet3Type', title: '🟨 Objet 3 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet3LienFiche', title: '🟨 Objet 3 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet3LienCreer', title: '🟨 Objet 3 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet4Nom', title: '🟨 Objet 4 — Nom', type: 'Text', optional: true },
+    { name: 'Objet4Type', title: '🟨 Objet 4 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet4LienFiche', title: '🟨 Objet 4 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet4LienCreer', title: '🟨 Objet 4 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet5Nom', title: '🟨 Objet 5 — Nom', type: 'Text', optional: true },
+    { name: 'Objet5Type', title: '🟨 Objet 5 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet5LienFiche', title: '🟨 Objet 5 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet5LienCreer', title: '🟨 Objet 5 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet6Nom', title: '🟨 Objet 6 — Nom', type: 'Text', optional: true },
+    { name: 'Objet6Type', title: '🟨 Objet 6 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet6LienFiche', title: '🟨 Objet 6 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
+    { name: 'Objet6LienCreer', title: '🟨 Objet 6 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
+
+    // ---- Groupe "Travaux / Interventions" (relié par nom, comme les fiches visite) ----
+    { name: 'NomOuvrageTravail', title: '🟧 Travaux — Nom complet ouvrage', type: 'Text', optional: true,
+      description: 'Doit correspondre au nom de l\'ouvrage (comme pour les fiches visite)' },
+    { name: 'DateTravail', title: '🟧 Travaux — Date de réalisation', type: 'Text,Date,DateTime,Any', optional: true },
+    { name: 'MecaniqueUsageTravail', title: '🟧 Travaux — Mécanique/Usages', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'TypeActionTravail', title: '🟧 Travaux — Type d\'action', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'CommentaireTravail', title: '🟧 Travaux — Commentaire', type: 'Text', optional: true }
   ],
   requiredAccess: 'full'
 });
