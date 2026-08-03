@@ -1278,31 +1278,29 @@ function classifyMilieuColor(milieu) {
 }
 
 // -------------------------------------------------------------------
-// Couleur associée à une lettre de notation (état structurel / sécurité usager)
+// Couleur associée à un chiffre de notation (état structurel / sécurité usager)
+// Échelle de 1 à 4 : 1=vert foncé, 2=vert clair, 3=orange, 4=rouge
 // -------------------------------------------------------------------
 
-const LETTER_GRADE_COLORS = {
-  A: '#1b5e20', // vert foncé
-  B: '#66bb6a', // vert clair
-  C: '#fdd835', // jaune
-  D: '#f57c00', // orange
-  E: '#e53935', // rouge
-  F: '#7f0000'  // rouge foncé
+const GRADE_COLORS = {
+  '1': '#1b5e20', // vert foncé
+  '2': '#66bb6a', // vert clair
+  '3': '#f57c00', // orange
+  '4': '#e53935'  // rouge
 };
 
-// Détermine la couleur associée à une lettre A-F (renvoie null si ce n'est pas une lettre reconnue)
-function letterGradeColor(value) {
-  const letter = (value || '').toString().trim().toUpperCase();
-  return LETTER_GRADE_COLORS[letter] || null;
+// Détermine la couleur associée à un chiffre 1-4 (renvoie null si ce n'est pas un chiffre reconnu)
+function gradeColor(value) {
+  const num = (value || '').toString().trim();
+  return GRADE_COLORS[num] || null;
 }
 
-// Construit le HTML d'un badge coloré pour une lettre A-F, ou le texte brut si non reconnu
-function letterGradeBadge(value) {
-  const color = letterGradeColor(value);
+// Construit le HTML d'un badge coloré pour un chiffre 1-4, ou le texte brut si non reconnu
+function gradeBadge(value) {
+  const color = gradeColor(value);
   const text = escapeHtml(value);
   if (!color) return text;
-  const textColor = (value.toString().trim().toUpperCase() === 'C') ? '#3a3000' : '#fff';
-  return '<span class="grade-badge" style="background:' + color + '; color:' + textColor + ';">' + text + '</span>';
+  return '<span class="grade-badge" style="background:' + color + '; color:#fff;">' + text + '</span>';
 }
 
 // -------------------------------------------------------------------
@@ -1320,11 +1318,11 @@ function computePatrimoineHealthStats() {
     seen.add(key);
     total++;
 
-    const letter = (entry.etat || '').toString().trim().toUpperCase();
-    if (letter === 'A' || letter === 'B') bon++;
-    else if (letter === 'C') surveiller++;
-    else if (letter === 'D') travaux++;
-    else if (letter === 'E' || letter === 'F') urgent++;
+    const num = (entry.etat || '').toString().trim();
+    if (num === '1') bon++;
+    else if (num === '2') surveiller++;
+    else if (num === '3') travaux++;
+    else if (num === '4') urgent++;
     else nonRenseigne++;
   });
 
@@ -1360,13 +1358,13 @@ window.showHealthModal = function () {
         (stats.nonRenseigne > 0 ? ' — dont ' + stats.nonRenseigne + ' sans état renseigné' : '') +
       '</p>' +
       '<div class="health-bars">' +
-        healthBarHtml('Bon état (A-B)', stats.bon, stats.totalConnu, '#2e7d32') +
-        healthBarHtml('À surveiller (C)', stats.surveiller, stats.totalConnu, '#fdd835') +
-        healthBarHtml('Travaux nécessaires (D)', stats.travaux, stats.totalConnu, '#f57c00') +
-        healthBarHtml('Intervention urgente (E-F)', stats.urgent, stats.totalConnu, '#c62828') +
+        healthBarHtml('Très bon état (1)', stats.bon, stats.totalConnu, '#1b5e20') +
+        healthBarHtml('Bon état (2)', stats.surveiller, stats.totalConnu, '#66bb6a') +
+        healthBarHtml('Travaux nécessaires (3)', stats.travaux, stats.totalConnu, '#f57c00') +
+        healthBarHtml('Intervention urgente (4)', stats.urgent, stats.totalConnu, '#e53935') +
       '</div>' +
       '<p class="health-note">Pourcentages calculés sur les ' + stats.totalConnu + ' ouvrage(s) ayant un état structurel renseigné (dernière visite). ' +
-      'A/B : bon état — C : à surveiller — D : travaux nécessaires — E/F : intervention urgente.</p>' +
+      '1 : très bon état — 2 : bon état — 3 : travaux nécessaires — 4 : intervention urgente.</p>' +
     '</div>';
   document.body.appendChild(overlay);
 };
@@ -2458,8 +2456,8 @@ window.exportOuvragePdf = async function (ouvrageId) {
   const visitsSummaryRows = (data.visits || []).map(v =>
     '<tr>' +
       '<td>' + escapeHtml(v.data.date || '—') + '</td>' +
-      '<td>' + letterGradeBadge(v.data.etatStructurel || '—') + '</td>' +
-      '<td>' + letterGradeBadge(v.data.etatSecurite || '—') + '</td>' +
+      '<td>' + gradeBadge(v.data.etatStructurel || '—') + '</td>' +
+      '<td>' + gradeBadge(v.data.etatSecurite || '—') + '</td>' +
       '<td>' + escapeHtml(v.data.conditionVisite || '—') + '</td>' +
       '<td>' + escapeHtml(v.data.description || '—') + '</td>' +
     '</tr>'
@@ -3624,8 +3622,8 @@ async function drawRecords(records, mappings) {
           '</select>'
         : '';
 
-      const etatHtml = letterGradeBadge(etat);
-      const securiteHtml = letterGradeBadge(securite);
+      const etatHtml = gradeBadge(etat);
+      const securiteHtml = gradeBadge(securite);
 
       // Stocke les données nécessaires à la fiche PDF complète de l'ouvrage
       const ouvrageId = 'ouvrage-' + Math.random().toString(36).slice(2);
