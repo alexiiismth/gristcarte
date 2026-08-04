@@ -3661,7 +3661,7 @@ async function drawRecords(records, mappings) {
             (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
             '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
             '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de l\'ouvrage</a>' +
-            '<a class="btn btn-form" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + grilleEvalGlobalId + '\', ' + jsStringLiteral('Grilles d\'évaluation') + ');">📋 Grilles d\'évaluation Etat structurel / Etat sécurité usagers</a>' +
+            '<a class="btn btn-form" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + grilleEvalGlobalId + '\', ' + jsStringLiteral('Grilles d\'évaluation') + ');">📋 Grilles d\'évaluation</a>' +
             '<a class="btn btn-travaux" href="#" onclick="event.preventDefault(); window.showTravauxModal(\'' + travauxId + '\', ' + jsStringLiteral(nom) + ');">🚧 Travaux</a>' +
             '<a class="btn btn-pdf-ouvrage" href="#" onclick="event.preventDefault(); window.exportOuvragePdf(\'' + ouvrageId + '\');">📥 Télécharger la fiche PDF</a>' +
           '</div>' +
