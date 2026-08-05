@@ -965,13 +965,132 @@
     text-align: center;
   }
   .structure-search-reset:hover { background: #f5f5f5; }
+
+  /* ---- Écran de protection par mot de passe ---- */
+  #password-gate-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    background: linear-gradient(135deg, #1565c0, #0d47a1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+  .password-gate-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 32px 28px;
+    width: 300px;
+    max-width: 90vw;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    text-align: center;
+  }
+  .password-gate-box h2 {
+    margin: 0 0 6px 0;
+    font-size: 18px;
+    color: #1a1a1a;
+  }
+  .password-gate-box p {
+    margin: 0 0 18px 0;
+    font-size: 13px;
+    color: #666;
+  }
+  .password-gate-box input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+  .password-gate-box button {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: #1565c0;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .password-gate-box button:hover { background: #0d47a1; }
+  .password-gate-error {
+    display: none;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #c62828;
+  }
+  .password-gate-error.visible { display: block; }
+
+  #map-content-wrapper { display: none; }
 </style>
 </head>
 <body>
+<div id="password-gate-overlay">
+  <div class="password-gate-box">
+    <h2>🔒 Accès protégé</h2>
+    <p>Merci de saisir le mot de passe pour afficher la carte.</p>
+    <input type="password" id="password-gate-input" placeholder="Mot de passe" autofocus />
+    <button id="password-gate-submit">Valider</button>
+    <div class="password-gate-error" id="password-gate-error">Mot de passe incorrect.</div>
+  </div>
+</div>
+<div id="map-content-wrapper">
 <div id="map"></div>
 <div id="pdf-export-container"></div>
+</div>
 
 <script>
+// -------------------------------------------------------------------
+// Protection par mot de passe du widget
+// -------------------------------------------------------------------
+(function () {
+  var CORRECT_PASSWORD = 'VSCCerema49';
+  var STORAGE_KEY = 'cerema-carte-widget-unlocked';
+
+  function unlock() {
+    document.getElementById('password-gate-overlay').style.display = 'none';
+    document.getElementById('map-content-wrapper').style.display = 'block';
+    try { sessionStorage.setItem(STORAGE_KEY, '1'); } catch (e) {}
+    // Laisse le temps au conteneur d'être visible avant que Leaflet calcule sa taille
+    setTimeout(function () {
+      try {
+        if (typeof map !== 'undefined' && map && typeof map.invalidateSize === 'function') {
+          map.invalidateSize();
+        }
+      } catch (e) {}
+    }, 100);
+  }
+
+  function tryPassword() {
+    var input = document.getElementById('password-gate-input');
+    var error = document.getElementById('password-gate-error');
+    if (input.value === CORRECT_PASSWORD) {
+      unlock();
+    } else {
+      error.classList.add('visible');
+      input.value = '';
+      input.focus();
+    }
+  }
+
+  // Si déjà déverrouillé plus tôt dans cette session de navigation, on saute l'écran
+  var alreadyUnlocked = false;
+  try { alreadyUnlocked = sessionStorage.getItem(STORAGE_KEY) === '1'; } catch (e) {}
+
+  if (alreadyUnlocked) {
+    unlock();
+  } else {
+    document.getElementById('password-gate-submit').addEventListener('click', tryPassword);
+    document.getElementById('password-gate-input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') tryPassword();
+    });
+  }
+})();
+
 // -------------------------------------------------------------------
 // 1) Parsing WKT : gère POLYGON(...) et MULTIPOLYGON(...), avec trous
 // -------------------------------------------------------------------
