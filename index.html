@@ -83,6 +83,7 @@
   .structure-card .btn-form { background: #2e7d32; }
   .structure-card .btn-maps { background: #616161; }
   .structure-card .btn-travaux { background: #e65100; }
+  .structure-card .btn-travaux-prevoir { background: #c62828; }
   .structure-card .btn-pdf-ouvrage { background: #6a1b9a; }
 
   .objet-select {
@@ -1059,6 +1060,7 @@
   body.mode-travaux .btn-fiche,
   body.mode-travaux .btn-form,
   body.mode-travaux .btn-maps,
+  body.mode-travaux .btn-travaux-prevoir,
   body.mode-travaux .btn-pdf-ouvrage,
   body.mode-travaux .objet-select,
   body.mode-travaux .map-toolbar-btn,
@@ -1139,6 +1141,40 @@
     font-size: 13px;
     color: #888;
     margin: 4px 0 8px 0;
+  }
+
+  /* ---- Modale "Travaux à prévoir" ---- */
+  .travaux-prevoir-form { text-align: left; }
+  .travaux-prevoir-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 10px 0 4px 0;
+  }
+  .travaux-prevoir-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    cursor: pointer;
+  }
+  .travaux-prevoir-checkboxes input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+  .travaux-prevoir-checkboxes .label-standard { color: #2e7d32; }
+  .travaux-prevoir-checkboxes .label-urgent { color: #c62828; }
+
+  /* ---- Clignotement rouge du pin d'un ouvrage ayant des travaux urgents prévus ---- */
+  @keyframes ouvrage-urgent-blink {
+    0%, 100% { filter: drop-shadow(0 0 0 rgba(255,0,0,0)); }
+    50% { filter: drop-shadow(0 0 10px #ff1744) drop-shadow(0 0 6px #ff1744) brightness(1.15); }
+  }
+  .ouvrage-marker-urgent {
+    animation: ouvrage-urgent-blink 1s ease-in-out infinite;
   }
 </style>
 </head>
@@ -1979,10 +2015,10 @@ window.showGuideModal = function () {
       '<tr style="background:#f5f5f5;"><th style="text-align:left;padding:6px;border:1px solid #ddd;">Bouton</th><th style="text-align:left;padding:6px;border:1px solid #ddd;">Fonction</th></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📄 Voir la/les fiche(s) visite(s)</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la ou les fiches de visite (onglets si plusieurs, triées de la plus récente à la plus ancienne). Message si aucune visite.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">➕ Créer une fiche visite</td><td style="padding:6px;border:1px solid #ddd;">Redirige vers le formulaire externe de saisie d\'une nouvelle visite.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">🧭 Naviguer</td><td style="padding:6px;border:1px solid #ddd;">Ouvre Google Maps centré sur l\'ouvrage.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📷 Photo(s) initial de l\'ouvrage</td><td style="padding:6px;border:1px solid #ddd;">Affiche jusqu\'à 4 photos de référence avec description.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à tous les ouvrages.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">🚧 Travaux</td><td style="padding:6px;border:1px solid #ddd;">Affiche l\'historique des interventions réalisées sur l\'ouvrage (date, mécanique/usages, type d\'action, commentaire).</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">🚧 Historique des travaux</td><td style="padding:6px;border:1px solid #ddd;">Affiche l\'historique des interventions réalisées sur l\'ouvrage (date, mécanique/usages, type d\'action, commentaire).</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">⚠️ Travaux à prévoir</td><td style="padding:6px;border:1px solid #ddd;">Note libre décrivant les travaux à planifier, avec une case "Travaux standard" ou "Travaux urgent". Si "urgent" est coché, le pin de l\'ouvrage clignote en rouge sur la carte.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📥 Télécharger la fiche PDF</td><td style="padding:6px;border:1px solid #ddd;">Génère la fiche synthétique complète de l\'ouvrage (informations, illustration, objets, synthèse des visites, historique des interventions), suivie de l\'ensemble des fiches de visite détaillées.</td></tr>' +
     '</table>' +
 
@@ -2332,6 +2368,9 @@ window.__structureRegistry = [];
 // Planification des visites du calendrier : { 'AAAA-MM-JJ': [ { rowId, nom }, ... ] }
 // Stockée dans les options du widget Grist (grist.setOption / grist.onOptions), PAS dans une colonne de table.
 window.__visitPlanning = {};
+// Travaux à prévoir (planification future, distincte de l'historique) : { 'nom ouvrage normalisé': { texte, standard, urgent } }
+// Stockée elle aussi dans les options du widget Grist (grist.setOption / grist.onOptions).
+window.__travauxAPrevoir = {};
 
 // Résout une liste de photos (URL ou pièce jointe Grist) et retourne le HTML des emplacements
 async function resolvePhotoSlotsHtml(photos) {
@@ -2871,6 +2910,132 @@ async function saveVisitPlanning(showFeedback) {
   return ok;
 }
 
+// -------------------------------------------------------------------
+// "Travaux à prévoir" : note de planification future par ouvrage, distincte de
+// l'historique des interventions déjà réalisées. Stockée dans les options du widget
+// Grist (comme la planification des visites), PAS dans une colonne de table.
+// -------------------------------------------------------------------
+
+// Enregistre window.__travauxAPrevoir dans les options du widget (+ sauvegarde locale de secours).
+async function saveTravauxAPrevoir(showFeedback) {
+  let ok = false;
+  try {
+    await grist.setOption('travauxAPrevoir', window.__travauxAPrevoir);
+    ok = true;
+  } catch (err) {
+    console.error('Impossible d\'enregistrer les travaux à prévoir dans les options du widget Grist :', err);
+  }
+  try {
+    localStorage.setItem('cerema-travaux-a-prevoir-backup', JSON.stringify(window.__travauxAPrevoir));
+  } catch (err) { /* pas grave, sauvegarde locale seulement en secours */ }
+
+  if (showFeedback) {
+    showCoordToast(ok ? '💾 Travaux à prévoir enregistrés' : '⚠️ Échec de l\'enregistrement, réessayez');
+  }
+  return ok;
+}
+
+// Fait clignoter en rouge (ou arrête de faire clignoter) le pin d'un ouvrage selon
+// que des travaux urgents sont prévus ou non pour lui.
+function setOuvrageBlink(marker, urgent) {
+  if (!marker || typeof marker.getElement !== 'function') return;
+  const el = marker.getElement();
+  if (!el) return;
+  if (urgent) {
+    el.classList.add('ouvrage-marker-urgent');
+  } else {
+    el.classList.remove('ouvrage-marker-urgent');
+  }
+}
+
+// Applique l'état de clignotement à tous les ouvrages du registre correspondant à une clé donnée
+// (une clé = un nom d'ouvrage normalisé ; peut concerner plusieurs marqueurs si doublon de nom).
+function applyOuvrageBlink(travauxPrevoirKey) {
+  const entry = window.__travauxAPrevoir[travauxPrevoirKey];
+  const urgent = !!(entry && entry.urgent);
+  window.__structureRegistry.forEach(regEntry => {
+    if (regEntry.travauxPrevoirKey === travauxPrevoirKey) {
+      setOuvrageBlink(regEntry.marker, urgent);
+    }
+  });
+}
+
+// Réapplique le clignotement sur tout le registre (utilisé après chargement des options Grist,
+// puisque les marqueurs peuvent avoir été créés avant que les options n'arrivent).
+function applyAllOuvrageBlinks() {
+  window.__structureRegistry.forEach(regEntry => {
+    const entry = window.__travauxAPrevoir[regEntry.travauxPrevoirKey];
+    setOuvrageBlink(regEntry.marker, !!(entry && entry.urgent));
+  });
+}
+
+// Modale "Travaux à prévoir" : une note de planification (texte libre + type standard/urgent)
+window.showTravauxAPrevoirModal = function (travauxPrevoirKey, nom) {
+  window.closePhotoModal();
+
+  const existing = window.__travauxAPrevoir[travauxPrevoirKey] || { texte: '', standard: false, urgent: false };
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal travaux-prevoir-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      '<h3>⚠️ Travaux à prévoir — ' + escapeHtml(nom || '') + '</h3>' +
+      '<div class="travaux-add-form travaux-prevoir-form">' +
+        '<label for="travaux-prevoir-texte">Travaux à prévoir</label>' +
+        '<textarea id="travaux-prevoir-texte" rows="4" placeholder="Décrivez les travaux à prévoir pour cet ouvrage...">' + escapeHtml(existing.texte || '') + '</textarea>' +
+        '<div class="travaux-prevoir-checkboxes">' +
+          '<label><input type="checkbox" id="travaux-prevoir-standard"' + (existing.standard ? ' checked' : '') + '> <span class="label-standard">Travaux standard</span></label>' +
+          '<label><input type="checkbox" id="travaux-prevoir-urgent"' + (existing.urgent ? ' checked' : '') + '> <span class="label-urgent">Travaux urgent</span></label>' +
+        '</div>' +
+        '<button id="travaux-prevoir-save-btn">💾 Enregistrer</button>' +
+        '<div class="travaux-add-status" id="travaux-prevoir-status"></div>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  const standardBox = document.getElementById('travaux-prevoir-standard');
+  const urgentBox = document.getElementById('travaux-prevoir-urgent');
+  // Les deux cases sont exclusives l'une de l'autre (un travail est soit standard, soit urgent)
+  standardBox.addEventListener('change', function () {
+    if (standardBox.checked) urgentBox.checked = false;
+  });
+  urgentBox.addEventListener('change', function () {
+    if (urgentBox.checked) standardBox.checked = false;
+  });
+
+  document.getElementById('travaux-prevoir-save-btn').onclick = async function () {
+    const saveBtn = this;
+    const statusEl = document.getElementById('travaux-prevoir-status');
+    const texte = document.getElementById('travaux-prevoir-texte').value.trim();
+    const standard = standardBox.checked;
+    const urgent = urgentBox.checked;
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Enregistrement…';
+    statusEl.className = 'travaux-add-status';
+    statusEl.textContent = '';
+
+    if (!texte && !standard && !urgent) {
+      delete window.__travauxAPrevoir[travauxPrevoirKey];
+    } else {
+      window.__travauxAPrevoir[travauxPrevoirKey] = { texte: texte, standard: standard, urgent: urgent };
+    }
+
+    const ok = await saveTravauxAPrevoir(false);
+    applyOuvrageBlink(travauxPrevoirKey);
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = '💾 Enregistrer';
+    statusEl.className = 'travaux-add-status ' + (ok ? 'success' : 'error');
+    statusEl.textContent = ok
+      ? '✅ Travaux à prévoir enregistrés.'
+      : '❌ Erreur lors de l\'enregistrement. Vérifiez que le widget a bien un accès complet au document.';
+  };
+};
+
 // Bouton "Enregistrer" du calendrier : sauvegarde immédiate et explicite, avec confirmation visible
 window.__saveCalendarNow = function () {
   saveVisitPlanning(true);
@@ -3255,6 +3420,9 @@ function applyStructureFilter(predicate) {
     if (predicate(entry)) {
       entry.marker.addTo(structureLayerGroup);
       matchedLatLngs.push(entry.marker.getLatLng());
+      // clearLayers() peut recréer l'élément DOM de l'icône : on réapplique le clignotement au besoin
+      const prevoirEntry = window.__travauxAPrevoir[entry.travauxPrevoirKey];
+      setOuvrageBlink(entry.marker, !!(prevoirEntry && prevoirEntry.urgent));
     }
   });
 
@@ -3851,6 +4019,8 @@ async function drawRecords(records, mappings) {
       const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
       const nom = mapped.NomStructure || 'Ouvrage';
       const imageSrc = resolveImageValue(mapped.ImageStructure, tokenInfo);
+      // Clé normalisée utilisée pour relier cet ouvrage à sa note "Travaux à prévoir" (même logique que les travaux/visites, reliés par nom)
+      const travauxPrevoirKey = nom.toString().trim().toLowerCase();
 
       // Domaine(s) de cet ouvrage : retrouvé(s) via sa Famille dans le bloc de référence
       // (une Famille peut appartenir à plusieurs Domaines), jamais lu directement sur cette ligne.
@@ -3864,7 +4034,8 @@ async function drawRecords(records, mappings) {
         nom: nom,
         domaine: domainesStructure, // tableau : une Famille peut appartenir à plusieurs Domaines
         famille: familleStructureNom,
-        groupe: formatTextValue(mapped.GroupeStructure)
+        groupe: formatTextValue(mapped.GroupeStructure),
+        travauxPrevoirKey: travauxPrevoirKey
       });
       const registryEntry = window.__structureRegistry[window.__structureRegistry.length - 1];
 
@@ -3872,6 +4043,8 @@ async function drawRecords(records, mappings) {
         icon: createStructureIcon(imageSrc, color)
       }).addTo(structureLayerGroup);
       registryEntry.marker = marker;
+      // Si des travaux urgents sont déjà prévus pour cet ouvrage (chargés depuis les options Grist), fait clignoter le pin
+      setOuvrageBlink(marker, !!(window.__travauxAPrevoir[travauxPrevoirKey] && window.__travauxAPrevoir[travauxPrevoirKey].urgent));
 
       const domaineAuto = findDomaineForPoint(lat, lng, domainePolygonsGlobal);
       const domaineGeo = domaineAuto || mapped.DomaineStructure || '—';
@@ -3880,8 +4053,6 @@ async function drawRecords(records, mappings) {
       const classifGroupe = formatTextValue(mapped.GroupeStructure) || '—';
       const lienFiche = mapped.LienFicheStructure || '';
       const lienFormulaire = mapped.LienFormulaireStructure || '';
-      const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
-
       // Visites reliées à cet ouvrage par nom (collectées indépendamment de la position de ligne)
       const visits = visitsByGroupKey.get(key) || [];
 
@@ -3993,10 +4164,10 @@ async function drawRecords(records, mappings) {
           '<div class="buttons" id="btns-default-' + objetUid + '">' +
             btnFiche +
             (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
-            '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
             '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de l\'ouvrage</a>' +
             '<a class="btn btn-form" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + grilleEvalGlobalId + '\', ' + jsStringLiteral('Grilles d\'évaluation') + ');">📋 Grilles d\'évaluation</a>' +
-            '<a class="btn btn-travaux" href="#" onclick="event.preventDefault(); window.showTravauxModal(\'' + travauxId + '\', ' + jsStringLiteral(nom) + ');">🚧 Travaux</a>' +
+            '<a class="btn btn-travaux" href="#" onclick="event.preventDefault(); window.showTravauxModal(\'' + travauxId + '\', ' + jsStringLiteral(nom) + ');">🚧 Historique des travaux</a>' +
+            '<a class="btn btn-travaux-prevoir" href="#" onclick="event.preventDefault(); window.showTravauxAPrevoirModal(' + jsStringLiteral(travauxPrevoirKey) + ', ' + jsStringLiteral(nom) + ');">⚠️ Travaux à prévoir</a>' +
             '<a class="btn btn-pdf-ouvrage" href="#" onclick="event.preventDefault(); window.exportOuvragePdf(\'' + ouvrageId + '\');">📥 Télécharger la fiche PDF</a>' +
           '</div>' +
           '<div class="buttons objet-buttons" id="btns-objet-' + objetUid + '" style="display:none;"></div>' +
@@ -4281,6 +4452,20 @@ try {
       }
     }
     if (document.getElementById('calendar-modal-overlay')) renderCalendarMonth();
+
+    // Travaux à prévoir : même mécanisme (options du widget Grist), utilisé pour faire
+    // clignoter en rouge le pin des ouvrages ayant des travaux urgents prévus.
+    if (options && options.travauxAPrevoir && Object.keys(options.travauxAPrevoir).length > 0) {
+      window.__travauxAPrevoir = options.travauxAPrevoir;
+    } else {
+      try {
+        const backupPrevoir = localStorage.getItem('cerema-travaux-a-prevoir-backup');
+        window.__travauxAPrevoir = backupPrevoir ? JSON.parse(backupPrevoir) : {};
+      } catch (err) {
+        window.__travauxAPrevoir = {};
+      }
+    }
+    applyAllOuvrageBlinks();
   });
 } catch (err) {
   console.error('grist.onOptions indisponible : la planification du calendrier ne pourra pas être sauvegardée.', err);
