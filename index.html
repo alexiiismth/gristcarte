@@ -4175,27 +4175,43 @@ grist.onRecords((records, mappings) => {
 // mode travaux ET par le formulaire d'ajout classique).
 // -------------------------------------------------------------------
 window.__saveTravauxRecord = async function (nomOuvrage, values) {
-  // IMPORTANT : on restreint explicitement le mapping à ces 5 colonnes.
-  // Sans ce filtre, mapColumnNamesBack peut prendre en compte l'intégralité
-  // des ~80 colonnes configurées pour le widget et tenter d'écrire des valeurs
-  // vides dans des colonnes non concernées (y compris des colonnes formule,
-  // ce qui provoque une erreur "can't save value to formula column ...").
-  var TRAVAUX_COLUMNS = [
-    { name: 'NomOuvrageTravail', title: '🟧 Travaux — Nom complet ouvrage', type: 'Text', optional: true },
-    { name: 'DateTravail', title: '🟧 Travaux — Date de réalisation', type: 'Text,Date,DateTime,Any', optional: true },
-    { name: 'MecaniqueUsageTravail', title: '🟧 Travaux — Mécanique/Usages', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
-    { name: 'TypeActionTravail', title: '🟧 Travaux — Type d\'action', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
-    { name: 'CommentaireTravail', title: '🟧 Travaux — Commentaire', type: 'Text', optional: true }
-  ];
+  // On construit nous-mêmes l'enregistrement brut à partir de l'objet de
+  // correspondance (mappings) reçu de Grist, en ne prenant QUE les 5 colonnes
+  // "Travaux" une par une. On n'utilise plus mapColumnNamesBack ici : dans ce
+  // widget (qui a ~80 colonnes configurées au total), elle a provoqué des
+  // écritures parasites vers d'autres colonnes (dont une colonne formule),
+  // ce qui bloquait tout l'enregistrement.
+  function getRawColId(friendlyName) {
+    var mappings = window.__gristMappings || {};
+    var raw = mappings[friendlyName];
+    if (!raw) return null;
+    // Si la colonne autorise une sélection multiple, Grist renvoie un tableau :
+    // on prend alors le premier identifiant.
+    if (Array.isArray(raw)) return raw.length > 0 ? raw[0] : null;
+    return raw;
+  }
 
-  function buildFriendlyRecord(dateValue) {
-    return {
-      NomOuvrageTravail: nomOuvrage,
-      DateTravail: dateValue,
-      MecaniqueUsageTravail: values.mecaniqueUsage,
-      TypeActionTravail: values.typeAction,
-      CommentaireTravail: values.commentaire
-    };
+  function buildRawRecord(dateValue) {
+    var rawRecord = {};
+    var pairs = [
+      ['NomOuvrageTravail', nomOuvrage],
+      ['DateTravail', dateValue],
+      ['MecaniqueUsageTravail', values.mecaniqueUsage],
+      ['TypeActionTravail', values.typeAction],
+      ['CommentaireTravail', values.commentaire]
+    ];
+    var missing = [];
+    for (var i = 0; i < pairs.length; i++) {
+      var friendlyName = pairs[i][0];
+      var value = pairs[i][1];
+      var colId = getRawColId(friendlyName);
+      if (colId) {
+        rawRecord[colId] = value;
+      } else {
+        missing.push(friendlyName);
+      }
+    }
+    return { rawRecord: rawRecord, missing: missing };
   }
 
   // Convertit "AAAA-MM-JJ" en nombre de secondes depuis epoch (format attendu
@@ -4210,19 +4226,19 @@ window.__saveTravauxRecord = async function (nomOuvrage, values) {
   }
 
   async function attemptCreate(dateValue) {
-    var friendlyRecord = buildFriendlyRecord(dateValue);
-    var rawRecord = friendlyRecord;
-    if (typeof grist.mapColumnNamesBack === 'function') {
-      var mapped = grist.mapColumnNamesBack(friendlyRecord, {
-        mappings: window.__gristMappings,
-        columns: TRAVAUX_COLUMNS
-      });
-      if (!mapped) {
-        throw new Error('Le mapping des colonnes "Travaux" n\'est pas configuré dans le widget (panneau de configuration des colonnes).');
-      }
-      rawRecord = mapped;
+    var built = buildRawRecord(dateValue);
+    if (Object.keys(built.rawRecord).length === 0) {
+      throw new Error(
+        'Aucune des colonnes "Travaux" n\'est mappée dans la configuration du widget. ' +
+        'Ouvrez le panneau de configuration du widget (⚙️ en haut à droite) et associez ' +
+        'les colonnes préfixées "🟧 Travaux" à de vraies colonnes de votre table.'
+      );
     }
-    return grist.selectedTable.create({ fields: rawRecord });
+    if (built.missing.length > 0) {
+      console.warn('Colonnes "Travaux" non mappées (ignorées à l\'enregistrement) : ' + built.missing.join(', '));
+    }
+    console.log('[Travaux] Envoi vers grist.selectedTable.create — fields :', built.rawRecord);
+    return grist.selectedTable.create({ fields: built.rawRecord });
   }
 
   // 1ère tentative : la date telle que saisie (texte "AAAA-MM-JJ")
