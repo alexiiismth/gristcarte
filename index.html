@@ -2390,7 +2390,7 @@ async function resolvePhotoSlotsHtml(photos) {
     const src = resolveImageValue(p.url, tokenInfo);
     let img;
     if (src) {
-      img = '<img src="' + escapeHtml(src) + '" alt="photo" onerror="console.error(\'Échec du chargement de l\\'image :\', this.src); this.replaceWith(Object.assign(document.createElement(\'div\'), {className:\'no-photo\', textContent:\'Image inaccessible (voir console)\'}))" />';
+      img = '<img src="' + escapeHtml(src) + '" alt="photo" onerror="console.error(\'Échec de chargement, URL :\', this.src); this.replaceWith(Object.assign(document.createElement(\'div\'), {className:\'no-photo\', textContent:\'Image inaccessible (voir console)\'}))" />';
     } else if (hasRawValue && tokenError) {
       img = '<div class="no-photo">' + escapeHtml(tokenError) + '</div>';
       console.error('Photo ' + (i + 1) + ' : valeur brute présente mais non résolue ->', p.url);
