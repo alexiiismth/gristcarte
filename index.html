@@ -2206,8 +2206,33 @@ async function getFreshAccessToken() {
   return await grist.docApi.getAccessToken({ readOnly: true });
 }
 
+// Décode le payload d'un JWT (sans vérifier la signature, juste pour en extraire des infos)
+function decodeJwtPayload(token) {
+  try {
+    const payloadPart = token.split('.')[1];
+    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '=='.slice(0, (4 - (base64.length % 4)) % 4);
+    const json = atob(padded);
+    return JSON.parse(json);
+  } catch (e) {
+    return null;
+  }
+}
+
 function buildAttachmentUrl(tokenInfo, attachmentId) {
-  return tokenInfo.baseUrl + '/attachments/' + attachmentId + '/download?auth=' + tokenInfo.token;
+  let baseUrl = tokenInfo.baseUrl;
+
+  // tokenInfo.baseUrl utilise parfois l'identifiant "court" du document (tel qu'affiché
+  // dans l'URL du navigateur), qui ne correspond pas toujours à l'identifiant complet
+  // attendu par l'API de téléchargement des pièces jointes. Le jeton d'accès (JWT), lui,
+  // contient l'identifiant complet et fiable du document (docId) : on l'utilise pour
+  // reconstruire l'URL de base si besoin.
+  const payload = decodeJwtPayload(tokenInfo.token);
+  if (payload && payload.docId) {
+    baseUrl = baseUrl.replace(/\/docs\/[^/]+$/, '/docs/' + payload.docId);
+  }
+
+  return baseUrl + '/attachments/' + attachmentId + '/download?auth=' + tokenInfo.token;
 }
 
 // value peut être : vide, une URL en texte, ou un tableau d'ids (colonne Pièce jointe Grist)
