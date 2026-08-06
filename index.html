@@ -1025,7 +1025,121 @@
   }
   .password-gate-error.visible { display: block; }
 
+  .password-gate-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 18px 0 14px 0;
+    font-size: 11px;
+    color: #999;
+  }
+  .password-gate-divider::before,
+  .password-gate-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e0e0e0;
+  }
+  .password-gate-travaux-btn {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e65100;
+    background: #fff3e0;
+    border: 1px solid #ffb74d;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .password-gate-travaux-btn:hover { background: #ffe0b2; }
+
   #map-content-wrapper { display: none; }
+
+  /* ---- Mode travaux : accès restreint, uniquement le bouton "Travaux" ---- */
+  body.mode-travaux .btn-fiche,
+  body.mode-travaux .btn-form,
+  body.mode-travaux .btn-maps,
+  body.mode-travaux .btn-pdf-ouvrage,
+  body.mode-travaux .objet-select,
+  body.mode-travaux .map-toolbar-btn,
+  body.mode-travaux #map-info-button,
+  body.mode-travaux #domaine-legend,
+  body.mode-travaux .structure-search-panel {
+    display: none !important;
+  }
+  body.mode-travaux .structure-card .warning-box.visible { display: none !important; }
+  .mode-travaux-badge {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5000;
+    background: #e65100;
+    color: #fff;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+
+  .travaux-add-form {
+    text-align: left;
+    background: #fff8f0;
+    border: 1px solid #ffcc80;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  .travaux-add-form h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #e65100;
+  }
+  .travaux-add-form label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    margin: 8px 0 3px 0;
+  }
+  .travaux-add-form input,
+  .travaux-add-form textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 9px;
+    font-size: 13px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-family: inherit;
+    resize: vertical;
+  }
+  .travaux-add-form button {
+    margin-top: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    background: #e65100;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .travaux-add-form button:disabled { opacity: 0.6; cursor: default; }
+  .travaux-add-status {
+    margin-top: 8px;
+    font-size: 12px;
+    display: none;
+  }
+  .travaux-add-status.success { display: block; color: #2e7d32; }
+  .travaux-add-status.error { display: block; color: #c62828; }
+  .travaux-history-title {
+    font-size: 13px;
+    color: #888;
+    margin: 4px 0 8px 0;
+  }
 </style>
 </head>
 <body>
@@ -1036,6 +1150,8 @@
     <input type="password" id="password-gate-input" placeholder="Mot de passe" autofocus />
     <button id="password-gate-submit">Valider</button>
     <div class="password-gate-error" id="password-gate-error">Mot de passe incorrect.</div>
+    <div class="password-gate-divider">ou</div>
+    <button id="password-gate-travaux-btn" class="password-gate-travaux-btn">🚧 Je viens de réaliser des travaux</button>
   </div>
 </div>
 <div id="map-content-wrapper">
@@ -1049,12 +1165,26 @@
 // -------------------------------------------------------------------
 (function () {
   var CORRECT_PASSWORD = 'VSCCerema49';
-  var STORAGE_KEY = 'cerema-carte-widget-unlocked';
+  var STORAGE_KEY = 'cerema-carte-widget-mode'; // valeurs possibles : 'admin' | 'travaux'
 
-  function unlock() {
+  function showModeTravauxBadge() {
+    if (document.getElementById('mode-travaux-badge')) return;
+    var badge = document.createElement('div');
+    badge.id = 'mode-travaux-badge';
+    badge.className = 'mode-travaux-badge';
+    badge.textContent = '🚧 Mode travaux — enregistrement uniquement';
+    document.body.appendChild(badge);
+  }
+
+  function unlock(mode) {
+    window.__modeTravaux = (mode === 'travaux');
+    if (window.__modeTravaux) {
+      document.body.classList.add('mode-travaux');
+      showModeTravauxBadge();
+    }
     document.getElementById('password-gate-overlay').style.display = 'none';
     document.getElementById('map-content-wrapper').style.display = 'block';
-    try { sessionStorage.setItem(STORAGE_KEY, '1'); } catch (e) {}
+    try { sessionStorage.setItem(STORAGE_KEY, mode); } catch (e) {}
     // Laisse le temps au conteneur d'être visible avant que Leaflet calcule sa taille
     setTimeout(function () {
       try {
@@ -1069,7 +1199,7 @@
     var input = document.getElementById('password-gate-input');
     var error = document.getElementById('password-gate-error');
     if (input.value === CORRECT_PASSWORD) {
-      unlock();
+      unlock('admin');
     } else {
       error.classList.add('visible');
       input.value = '';
@@ -1078,15 +1208,18 @@
   }
 
   // Si déjà déverrouillé plus tôt dans cette session de navigation, on saute l'écran
-  var alreadyUnlocked = false;
-  try { alreadyUnlocked = sessionStorage.getItem(STORAGE_KEY) === '1'; } catch (e) {}
+  var savedMode = null;
+  try { savedMode = sessionStorage.getItem(STORAGE_KEY); } catch (e) {}
 
-  if (alreadyUnlocked) {
-    unlock();
+  if (savedMode === 'admin' || savedMode === 'travaux') {
+    unlock(savedMode);
   } else {
     document.getElementById('password-gate-submit').addEventListener('click', tryPassword);
     document.getElementById('password-gate-input').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') tryPassword();
+    });
+    document.getElementById('password-gate-travaux-btn').addEventListener('click', function () {
+      unlock('travaux');
     });
   }
 })();
@@ -2507,6 +2640,7 @@ window.showTravauxModal = function (travauxId, nom) {
   window.closePhotoModal();
 
   const travaux = window.__travauxStore[travauxId] || [];
+  const todayIso = new Date().toISOString().slice(0, 10);
 
   const rowsHtml = travaux.length > 0
     ? travaux.map(t =>
@@ -2519,6 +2653,13 @@ window.showTravauxModal = function (travauxId, nom) {
       ).join('')
     : '<tr><td colspan="4" style="text-align:center; color:#888;">Aucune intervention enregistrée pour cet ouvrage.</td></tr>';
 
+  const historyBlockHtml =
+    '<p class="travaux-history-title">Historique des interventions</p>' +
+    '<table class="travaux-table">' +
+      '<thead><tr><th>Date de réalisation</th><th>Mécanique/Usages</th><th>Type d\'action</th><th>Commentaire</th></tr></thead>' +
+      '<tbody id="travaux-history-tbody">' + rowsHtml + '</tbody>' +
+    '</table>';
+
   const overlay = document.createElement('div');
   overlay.className = 'photo-modal-overlay';
   overlay.id = 'photo-modal-overlay';
@@ -2526,13 +2667,87 @@ window.showTravauxModal = function (travauxId, nom) {
   overlay.innerHTML =
     '<div class="photo-modal travaux-modal">' +
       '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
-      '<h3>🚧 Historique des interventions — ' + escapeHtml(nom || '') + '</h3>' +
-      '<table class="travaux-table">' +
-        '<thead><tr><th>Date de réalisation</th><th>Mécanique/Usages</th><th>Type d\'action</th><th>Commentaire</th></tr></thead>' +
-        '<tbody>' + rowsHtml + '</tbody>' +
-      '</table>' +
+      '<h3>🚧 Travaux — ' + escapeHtml(nom || '') + '</h3>' +
+      '<div class="travaux-add-form">' +
+        '<h4>➕ Enregistrer une nouvelle intervention</h4>' +
+        '<label for="travaux-add-date">Date de réalisation</label>' +
+        '<input type="date" id="travaux-add-date" value="' + todayIso + '">' +
+        '<label for="travaux-add-mecanique">Mécanique / Usages</label>' +
+        '<input type="text" id="travaux-add-mecanique" placeholder="Ex : Mécanique">' +
+        '<label for="travaux-add-type">Type d\'action</label>' +
+        '<input type="text" id="travaux-add-type" placeholder="Ex : Réparation, entretien...">' +
+        '<label for="travaux-add-commentaire">Commentaire</label>' +
+        '<textarea id="travaux-add-commentaire" rows="3" placeholder="Décrivez l\'intervention réalisée..."></textarea>' +
+        '<button id="travaux-add-save-btn">💾 Enregistrer l\'intervention</button>' +
+        '<div class="travaux-add-status" id="travaux-add-status"></div>' +
+      '</div>' +
+      '<div id="travaux-history-block">' + historyBlockHtml + '</div>' +
     '</div>';
   document.body.appendChild(overlay);
+
+  document.getElementById('travaux-add-save-btn').onclick = async function () {
+    const saveBtn = this;
+    const statusEl = document.getElementById('travaux-add-status');
+    const values = {
+      date: document.getElementById('travaux-add-date').value,
+      mecaniqueUsage: document.getElementById('travaux-add-mecanique').value.trim(),
+      typeAction: document.getElementById('travaux-add-type').value.trim(),
+      commentaire: document.getElementById('travaux-add-commentaire').value.trim()
+    };
+
+    if (!values.mecaniqueUsage && !values.typeAction && !values.commentaire) {
+      statusEl.className = 'travaux-add-status error';
+      statusEl.textContent = 'Merci de renseigner au moins un champ avant d\'enregistrer.';
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Enregistrement…';
+    statusEl.className = 'travaux-add-status';
+    statusEl.textContent = '';
+
+    const ok = await window.__saveTravauxRecord(nom, values);
+
+    if (ok) {
+      statusEl.className = 'travaux-add-status success';
+      statusEl.textContent = '✅ Intervention enregistrée avec succès.';
+      document.getElementById('travaux-add-mecanique').value = '';
+      document.getElementById('travaux-add-type').value = '';
+      document.getElementById('travaux-add-commentaire').value = '';
+
+      if (!window.__travauxStore[travauxId]) window.__travauxStore[travauxId] = [];
+      window.__travauxStore[travauxId].unshift({
+        date: values.date,
+        mecaniqueUsage: values.mecaniqueUsage,
+        typeAction: values.typeAction,
+        commentaire: values.commentaire
+      });
+      const historyBlock = document.getElementById('travaux-history-block');
+      if (historyBlock) {
+        const updated = window.__travauxStore[travauxId];
+        const updatedRowsHtml = updated.map(t =>
+          '<tr>' +
+            '<td>' + escapeHtml(t.date || '—') + '</td>' +
+            '<td>' + escapeHtml(t.mecaniqueUsage || '—') + '</td>' +
+            '<td>' + escapeHtml(t.typeAction || '—') + '</td>' +
+            '<td>' + escapeHtml(t.commentaire || '—') + '</td>' +
+          '</tr>'
+        ).join('');
+        historyBlock.innerHTML =
+          '<p class="travaux-history-title">Historique des interventions</p>' +
+          '<table class="travaux-table">' +
+            '<thead><tr><th>Date de réalisation</th><th>Mécanique/Usages</th><th>Type d\'action</th><th>Commentaire</th></tr></thead>' +
+            '<tbody>' + updatedRowsHtml + '</tbody>' +
+          '</table>';
+      }
+    } else {
+      statusEl.className = 'travaux-add-status error';
+      statusEl.textContent = '❌ Une erreur est survenue lors de l\'enregistrement. Merci de réessayer.';
+    }
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = '💾 Enregistrer l\'intervention';
+  };
 };
 
 // -------------------------------------------------------------------
@@ -3949,7 +4164,39 @@ grist.ready({
   requiredAccess: 'full'
 });
 
-grist.onRecords((records, mappings) => drawRecords(records, mappings));
+grist.onRecords((records, mappings) => {
+  window.__gristMappings = mappings;
+  drawRecords(records, mappings);
+});
+
+// -------------------------------------------------------------------
+// Enregistrement d'une intervention "Travaux" directement dans la table
+// Grist, sans passer par la vue tableau (utilisé par le formulaire du
+// mode travaux ET par le formulaire d'ajout classique).
+// -------------------------------------------------------------------
+window.__saveTravauxRecord = async function (nomOuvrage, values) {
+  try {
+    var friendlyRecord = {
+      NomOuvrageTravail: nomOuvrage,
+      DateTravail: values.date,
+      MecaniqueUsageTravail: values.mecaniqueUsage,
+      TypeActionTravail: values.typeAction,
+      CommentaireTravail: values.commentaire
+    };
+    var rawRecord = (typeof grist.mapColumnNamesBack === 'function')
+      ? grist.mapColumnNamesBack(friendlyRecord, { mappings: window.__gristMappings })
+      : friendlyRecord;
+    if (!rawRecord) {
+      console.error('Impossible de mapper les colonnes travaux (colonnes non configurées dans le widget).');
+      return false;
+    }
+    await grist.selectedTable.create({ fields: rawRecord });
+    return true;
+  } catch (err) {
+    console.error('Erreur lors de l\'enregistrement de l\'intervention travaux :', err);
+    return false;
+  }
+};
 
 // Charge la planification du calendrier depuis les options du widget (persistée par Grist, sans colonne de table),
 // et se met à jour automatiquement si elle est modifiée ailleurs (autre utilisateur, autre session).
