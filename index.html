@@ -4175,6 +4175,19 @@ grist.onRecords((records, mappings) => {
 // mode travaux ET par le formulaire d'ajout classique).
 // -------------------------------------------------------------------
 window.__saveTravauxRecord = async function (nomOuvrage, values) {
+  // IMPORTANT : on restreint explicitement le mapping à ces 5 colonnes.
+  // Sans ce filtre, mapColumnNamesBack peut prendre en compte l'intégralité
+  // des ~80 colonnes configurées pour le widget et tenter d'écrire des valeurs
+  // vides dans des colonnes non concernées (y compris des colonnes formule,
+  // ce qui provoque une erreur "can't save value to formula column ...").
+  var TRAVAUX_COLUMNS = [
+    { name: 'NomOuvrageTravail', title: '🟧 Travaux — Nom complet ouvrage', type: 'Text', optional: true },
+    { name: 'DateTravail', title: '🟧 Travaux — Date de réalisation', type: 'Text,Date,DateTime,Any', optional: true },
+    { name: 'MecaniqueUsageTravail', title: '🟧 Travaux — Mécanique/Usages', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'TypeActionTravail', title: '🟧 Travaux — Type d\'action', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
+    { name: 'CommentaireTravail', title: '🟧 Travaux — Commentaire', type: 'Text', optional: true }
+  ];
+
   function buildFriendlyRecord(dateValue) {
     return {
       NomOuvrageTravail: nomOuvrage,
@@ -4200,13 +4213,12 @@ window.__saveTravauxRecord = async function (nomOuvrage, values) {
     var friendlyRecord = buildFriendlyRecord(dateValue);
     var rawRecord = friendlyRecord;
     if (typeof grist.mapColumnNamesBack === 'function') {
-      var mapped = grist.mapColumnNamesBack(friendlyRecord, { mappings: window.__gristMappings });
+      var mapped = grist.mapColumnNamesBack(friendlyRecord, {
+        mappings: window.__gristMappings,
+        columns: TRAVAUX_COLUMNS
+      });
       if (!mapped) {
         throw new Error('Le mapping des colonnes "Travaux" n\'est pas configuré dans le widget (panneau de configuration des colonnes).');
-      }
-      var mappedKeyCount = Object.keys(mapped).length;
-      if (mappedKeyCount < Object.keys(friendlyRecord).length) {
-        console.warn('Attention : seules ' + mappedKeyCount + ' colonne(s) sur ' + Object.keys(friendlyRecord).length + ' ont pu être mappées. Vérifiez le panneau "Sélectionner les colonnes" du widget (colonnes préfixées 🟧 Travaux).');
       }
       rawRecord = mapped;
     }
