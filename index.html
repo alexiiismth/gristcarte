@@ -2706,9 +2706,9 @@ window.showTravauxModal = function (travauxId, nom) {
     statusEl.className = 'travaux-add-status';
     statusEl.textContent = '';
 
-    const ok = await window.__saveTravauxRecord(nom, values);
+    const result = await window.__saveTravauxRecord(nom, values);
 
-    if (ok) {
+    if (result.ok) {
       statusEl.className = 'travaux-add-status success';
       statusEl.textContent = '✅ Intervention enregistrée avec succès.';
       document.getElementById('travaux-add-mecanique').value = '';
@@ -2742,7 +2742,7 @@ window.showTravauxModal = function (travauxId, nom) {
       }
     } else {
       statusEl.className = 'travaux-add-status error';
-      statusEl.textContent = '❌ Une erreur est survenue lors de l\'enregistrement. Merci de réessayer.';
+      statusEl.textContent = '❌ Erreur lors de l\'enregistrement : ' + (result.message || 'raison inconnue') + '. Vérifiez que le widget a bien un accès complet au document (voir message ci-dessous).';
     }
 
     saveBtn.disabled = false;
@@ -4175,26 +4175,65 @@ grist.onRecords((records, mappings) => {
 // mode travaux ET par le formulaire d'ajout classique).
 // -------------------------------------------------------------------
 window.__saveTravauxRecord = async function (nomOuvrage, values) {
-  try {
-    var friendlyRecord = {
+  function buildFriendlyRecord(dateValue) {
+    return {
       NomOuvrageTravail: nomOuvrage,
-      DateTravail: values.date,
+      DateTravail: dateValue,
       MecaniqueUsageTravail: values.mecaniqueUsage,
       TypeActionTravail: values.typeAction,
       CommentaireTravail: values.commentaire
     };
-    var rawRecord = (typeof grist.mapColumnNamesBack === 'function')
-      ? grist.mapColumnNamesBack(friendlyRecord, { mappings: window.__gristMappings })
-      : friendlyRecord;
-    if (!rawRecord) {
-      console.error('Impossible de mapper les colonnes travaux (colonnes non configurées dans le widget).');
-      return false;
+  }
+
+  // Convertit "AAAA-MM-JJ" en nombre de secondes depuis epoch (format attendu
+  // par les colonnes Grist de type Date/DateTime, contrairement au texte brut).
+  function dateStringToEpochSeconds(dateStr) {
+    if (!dateStr) return null;
+    var parts = dateStr.split('-');
+    if (parts.length !== 3) return null;
+    var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10), d = parseInt(parts[2], 10);
+    if (!y || !m || !d) return null;
+    return Math.floor(Date.UTC(y, m - 1, d) / 1000);
+  }
+
+  async function attemptCreate(dateValue) {
+    var friendlyRecord = buildFriendlyRecord(dateValue);
+    var rawRecord = friendlyRecord;
+    if (typeof grist.mapColumnNamesBack === 'function') {
+      var mapped = grist.mapColumnNamesBack(friendlyRecord, { mappings: window.__gristMappings });
+      if (!mapped) {
+        throw new Error('Le mapping des colonnes "Travaux" n\'est pas configuré dans le widget (panneau de configuration des colonnes).');
+      }
+      var mappedKeyCount = Object.keys(mapped).length;
+      if (mappedKeyCount < Object.keys(friendlyRecord).length) {
+        console.warn('Attention : seules ' + mappedKeyCount + ' colonne(s) sur ' + Object.keys(friendlyRecord).length + ' ont pu être mappées. Vérifiez le panneau "Sélectionner les colonnes" du widget (colonnes préfixées 🟧 Travaux).');
+      }
+      rawRecord = mapped;
     }
-    await grist.selectedTable.create({ fields: rawRecord });
-    return true;
-  } catch (err) {
-    console.error('Erreur lors de l\'enregistrement de l\'intervention travaux :', err);
-    return false;
+    return grist.selectedTable.create({ fields: rawRecord });
+  }
+
+  // 1ère tentative : la date telle que saisie (texte "AAAA-MM-JJ")
+  try {
+    await attemptCreate(values.date);
+    return { ok: true };
+  } catch (err1) {
+    console.error('Échec de l\'enregistrement travaux (tentative 1, date en texte) :', err1);
+
+    // 2e tentative : si la colonne cible est de type Date/DateTime, Grist attend
+    // un nombre (secondes depuis epoch) et non une chaîne de texte.
+    var epoch = dateStringToEpochSeconds(values.date);
+    if (epoch !== null) {
+      try {
+        await attemptCreate(epoch);
+        return { ok: true };
+      } catch (err2) {
+        console.error('Échec de l\'enregistrement travaux (tentative 2, date en epoch) :', err2);
+        return { ok: false, message: (err2 && err2.message) ? err2.message : String(err2) };
+      }
+    }
+
+    return { ok: false, message: (err1 && err1.message) ? err1.message : String(err1) };
   }
 };
 
