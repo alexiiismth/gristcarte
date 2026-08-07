@@ -2251,6 +2251,38 @@ function resolveImageValue(value, tokenInfo) {
   return String(value).trim();
 }
 
+// Extrait l'identifiant numérique de pièce jointe Grist depuis une valeur de cellule
+// (même logique que resolveImageValue, mais retourne juste l'id, utile pour une éventuelle relance).
+// Retourne null si la valeur n'est pas une pièce jointe Grist (ex: URL en texte).
+function extractAttachmentId(value) {
+  if (!value || !Array.isArray(value) || value.length === 0) return null;
+  const items = (value[0] === 'L') ? value.slice(1) : value;
+  if (items.length === 0) return null;
+  const first = items[0];
+  return typeof first === 'number' ? first : (typeof first === 'string' && /^\d+$/.test(first) ? Number(first) : null);
+}
+
+// Relance le chargement d'une image de pièce jointe avec un jeton tout frais, en cas d'échec.
+// Utile car le jeton peut avoir expiré (15 min) entre sa récupération initiale et le moment
+// réel où le navigateur charge l'image, notamment si le rendu de la page a pris du temps.
+// Une seule tentative de relance (via dataset.retried), pour éviter une boucle infinie si
+// le vrai problème est ailleurs (droits d'accès, pièce jointe supprimée, etc.).
+window.__retryAttachmentImg = async function (imgEl, attachmentId) {
+  if (imgEl.dataset.retried) {
+    console.error('Échec de chargement (même après relance avec jeton frais), URL :', imgEl.src);
+    imgEl.replaceWith(Object.assign(document.createElement('div'), { className: 'no-photo', textContent: 'Image inaccessible (voir console)' }));
+    return;
+  }
+  imgEl.dataset.retried = '1';
+  try {
+    const freshToken = await getFreshAccessToken();
+    imgEl.src = buildAttachmentUrl(freshToken, attachmentId);
+  } catch (e) {
+    console.error('Échec de la relance (impossible d\'obtenir un jeton frais) :', e);
+    imgEl.replaceWith(Object.assign(document.createElement('div'), { className: 'no-photo', textContent: 'Image inaccessible (voir console)' }));
+  }
+};
+
 // Convertit un texte en nombre en gérant la virgule décimale française ("43,6047" -> 43.6047)
 function parseFrenchNumber(value) {
   if (value === null || value === undefined || value === '') return NaN;
@@ -2413,9 +2445,13 @@ async function resolvePhotoSlotsHtml(photos) {
   return photos.map((p, i) => {
     const hasRawValue = Array.isArray(p.url) ? p.url.length > 0 : !!p.url;
     const src = resolveImageValue(p.url, tokenInfo);
+    const attachmentId = extractAttachmentId(p.url);
     let img;
     if (src) {
-      img = '<img src="' + escapeHtml(src) + '" alt="photo" onerror="console.error(\'Échec de chargement, URL :\', this.src); this.replaceWith(Object.assign(document.createElement(\'div\'), {className:\'no-photo\', textContent:\'Image inaccessible (voir console)\'}))" />';
+      const onerrorAttr = attachmentId !== null
+        ? "window.__retryAttachmentImg(this, " + attachmentId + ")"
+        : "console.error('Échec de chargement, URL :', this.src); this.replaceWith(Object.assign(document.createElement('div'), {className:'no-photo', textContent:'Image inaccessible (voir console)'}))";
+      img = '<img src="' + escapeHtml(src) + '" alt="photo" referrerpolicy="no-referrer" onerror="' + onerrorAttr + '" />';
     } else if (hasRawValue && tokenError) {
       img = '<div class="no-photo">' + escapeHtml(tokenError) + '</div>';
       console.error('Photo ' + (i + 1) + ' : valeur brute présente mais non résolue ->', p.url);
@@ -2632,7 +2668,7 @@ async function buildPdfPhotosHtml(photos) {
 
   return nonEmpty.map(p => {
     const src = resolveImageValue(p.url, tokenInfo);
-    const img = src ? '<img src="' + escapeHtml(src) + '" alt="photo" />' : '';
+    const img = src ? '<img src="' + escapeHtml(src) + '" alt="photo" referrerpolicy="no-referrer" />' : '';
     const desc = p.desc ? '<div class="pdf-photo-desc">' + escapeHtml(p.desc) + '</div>' : '';
     return '<div class="pdf-photo-item">' + img + desc + '</div>';
   }).join('');
@@ -3401,11 +3437,20 @@ function attachHoverCard(layer, contentHtml, extraOptions) {
 }
 
 // Crée l'icône d'un marqueur "Ouvrage" : soit une image fournie, soit un pin rouge par défaut
-function createStructureIcon(imageUrl, color) {
+function createStructureIcon(imageUrl, color, attachmentId) {
   const url = imageUrl ? String(imageUrl).trim() : '';
   if (url !== '') {
-    return L.icon({
-      iconUrl: url,
+    // divIcon (plutôt que L.icon) pour pouvoir ajouter referrerpolicy="no-referrer" et une
+    // relance automatique (jeton frais) en cas d'échec de chargement de la pièce jointe.
+    const onerrorAttr = (attachmentId !== null && attachmentId !== undefined)
+      ? "window.__retryAttachmentImg(this, " + attachmentId + ")"
+      : "this.replaceWith(Object.assign(document.createElement('div'),{style:this.getAttribute('style')+'background:#e53935'}))";
+    return L.divIcon({
+      html: '<img src="' + url.replace(/"/g, '&quot;') + '" referrerpolicy="no-referrer" ' +
+        'style="width:68px;height:68px;object-fit:cover;border-radius:50%;border:2px solid #fff;' +
+        'box-shadow:0 1px 4px rgba(0,0,0,.4);" ' +
+        'onerror="' + onerrorAttr + '" />',
+      className: '',
       iconSize: [68, 68],      // taille x2 par rapport à avant (34 -> 68)
       iconAnchor: [34, 68],
       popupAnchor: [0, -68]
@@ -4046,6 +4091,7 @@ async function drawRecords(records, mappings) {
       const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
       const nom = mapped.NomStructure || 'Ouvrage';
       const imageSrc = resolveImageValue(mapped.ImageStructure, tokenInfo);
+      const imageAttachmentId = extractAttachmentId(mapped.ImageStructure);
       // Clé normalisée utilisée pour relier cet ouvrage à sa note "Travaux à prévoir" (même logique que les travaux/visites, reliés par nom)
       const travauxPrevoirKey = nom.toString().trim().toLowerCase();
 
@@ -4067,7 +4113,7 @@ async function drawRecords(records, mappings) {
       const registryEntry = window.__structureRegistry[window.__structureRegistry.length - 1];
 
       const marker = L.marker([lat, lng], {
-        icon: createStructureIcon(imageSrc, color)
+        icon: createStructureIcon(imageSrc, color, imageAttachmentId)
       }).addTo(structureLayerGroup);
       registryEntry.marker = marker;
       // Si des travaux urgents sont déjà prévus pour cet ouvrage (chargés depuis les options Grist), fait clignoter le pin
