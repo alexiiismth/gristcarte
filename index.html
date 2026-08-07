@@ -3440,17 +3440,8 @@ function attachHoverCard(layer, contentHtml, extraOptions) {
 function createStructureIcon(imageUrl, color, attachmentId) {
   const url = imageUrl ? String(imageUrl).trim() : '';
   if (url !== '') {
-    // divIcon (plutôt que L.icon) pour pouvoir ajouter referrerpolicy="no-referrer" et une
-    // relance automatique (jeton frais) en cas d'échec de chargement de la pièce jointe.
-    const onerrorAttr = (attachmentId !== null && attachmentId !== undefined)
-      ? "window.__retryAttachmentImg(this, " + attachmentId + ")"
-      : "this.replaceWith(Object.assign(document.createElement('div'),{style:this.getAttribute('style')+'background:#e53935'}))";
-    return L.divIcon({
-      html: '<img src="' + url.replace(/"/g, '&quot;') + '" referrerpolicy="no-referrer" ' +
-        'style="width:68px;height:68px;object-fit:cover;border-radius:50%;border:2px solid #fff;' +
-        'box-shadow:0 1px 4px rgba(0,0,0,.4);" ' +
-        'onerror="' + onerrorAttr + '" />',
-      className: '',
+    return L.icon({
+      iconUrl: url,
       iconSize: [68, 68],      // taille x2 par rapport à avant (34 -> 68)
       iconAnchor: [34, 68],
       popupAnchor: [0, -68]
