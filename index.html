@@ -83,6 +83,7 @@
   .structure-card .btn-form { background: #2e7d32; }
   .structure-card .btn-maps { background: #616161; }
   .structure-card .btn-travaux { background: #e65100; }
+  .structure-card .btn-travaux-prevoir { background: #c62828; }
   .structure-card .btn-pdf-ouvrage { background: #6a1b9a; }
 
   .objet-select {
@@ -965,13 +966,300 @@
     text-align: center;
   }
   .structure-search-reset:hover { background: #f5f5f5; }
+
+  /* ---- Écran de protection par mot de passe ---- */
+  #password-gate-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    background: linear-gradient(135deg, #1565c0, #0d47a1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+  .password-gate-box {
+    background: #fff;
+    border-radius: 14px;
+    padding: 32px 28px;
+    width: 300px;
+    max-width: 90vw;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    text-align: center;
+  }
+  .password-gate-box h2 {
+    margin: 0 0 6px 0;
+    font-size: 18px;
+    color: #1a1a1a;
+  }
+  .password-gate-box p {
+    margin: 0 0 18px 0;
+    font-size: 13px;
+    color: #666;
+  }
+  .password-gate-box input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    font-size: 14px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+  .password-gate-box button {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: #1565c0;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .password-gate-box button:hover { background: #0d47a1; }
+  .password-gate-error {
+    display: none;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #c62828;
+  }
+  .password-gate-error.visible { display: block; }
+
+  .password-gate-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 18px 0 14px 0;
+    font-size: 11px;
+    color: #999;
+  }
+  .password-gate-divider::before,
+  .password-gate-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #e0e0e0;
+  }
+  .password-gate-travaux-btn {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #e65100;
+    background: #fff3e0;
+    border: 1px solid #ffb74d;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .password-gate-travaux-btn:hover { background: #ffe0b2; }
+
+  #map-content-wrapper { display: none; }
+
+  /* ---- Mode travaux : accès restreint, uniquement le bouton "Travaux" ---- */
+  body.mode-travaux .btn-fiche,
+  body.mode-travaux .btn-form,
+  body.mode-travaux .btn-maps,
+  body.mode-travaux .btn-travaux-prevoir,
+  body.mode-travaux .btn-pdf-ouvrage,
+  body.mode-travaux .objet-select,
+  body.mode-travaux .map-toolbar-btn,
+  body.mode-travaux #map-info-button,
+  body.mode-travaux #domaine-legend,
+  body.mode-travaux .structure-search-panel {
+    display: none !important;
+  }
+  body.mode-travaux .structure-card .warning-box.visible { display: none !important; }
+  .mode-travaux-badge {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 5000;
+    background: #e65100;
+    color: #fff;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+
+  .travaux-add-form {
+    text-align: left;
+    background: #fff8f0;
+    border: 1px solid #ffcc80;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+  }
+  .travaux-add-form h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #e65100;
+  }
+  .travaux-add-form label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    margin: 8px 0 3px 0;
+  }
+  .travaux-add-form input,
+  .travaux-add-form textarea {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 7px 9px;
+    font-size: 13px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-family: inherit;
+    resize: vertical;
+  }
+  .travaux-add-form button {
+    margin-top: 10px;
+    width: 100%;
+    padding: 9px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    background: #e65100;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .travaux-add-form button:disabled { opacity: 0.6; cursor: default; }
+  .travaux-add-status {
+    margin-top: 8px;
+    font-size: 12px;
+    display: none;
+  }
+  .travaux-add-status.success { display: block; color: #2e7d32; }
+  .travaux-add-status.error { display: block; color: #c62828; }
+  .travaux-history-title {
+    font-size: 13px;
+    color: #888;
+    margin: 4px 0 8px 0;
+  }
+
+  /* ---- Modale "Travaux à prévoir" ---- */
+  .travaux-prevoir-form { text-align: left; }
+  .travaux-prevoir-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 10px 0 4px 0;
+  }
+  .travaux-prevoir-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    cursor: pointer;
+  }
+  .travaux-prevoir-checkboxes input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+  .travaux-prevoir-checkboxes .label-standard { color: #2e7d32; }
+  .travaux-prevoir-checkboxes .label-urgent { color: #c62828; }
+
+  /* ---- Clignotement rouge du pin d'un ouvrage ayant des travaux urgents prévus ---- */
+  @keyframes ouvrage-urgent-blink {
+    0%, 100% { filter: drop-shadow(0 0 0 rgba(255,0,0,0)); }
+    50% { filter: drop-shadow(0 0 10px #ff1744) drop-shadow(0 0 6px #ff1744) brightness(1.15); }
+  }
+  .ouvrage-marker-urgent {
+    animation: ouvrage-urgent-blink 1s ease-in-out infinite;
+  }
 </style>
 </head>
 <body>
+<div id="password-gate-overlay">
+  <div class="password-gate-box">
+    <h2>🔒 Accès protégé</h2>
+    <p>Merci de saisir le mot de passe pour afficher la carte.</p>
+    <input type="password" id="password-gate-input" placeholder="Mot de passe" autofocus />
+    <button id="password-gate-submit">Valider</button>
+    <div class="password-gate-error" id="password-gate-error">Mot de passe incorrect.</div>
+    <div class="password-gate-divider">ou</div>
+    <button id="password-gate-travaux-btn" class="password-gate-travaux-btn">🚧 Je viens de réaliser des travaux</button>
+  </div>
+</div>
+<div id="map-content-wrapper">
 <div id="map"></div>
 <div id="pdf-export-container"></div>
+</div>
 
 <script>
+// -------------------------------------------------------------------
+// Protection par mot de passe du widget
+// -------------------------------------------------------------------
+(function () {
+  var CORRECT_PASSWORD = 'VSCCerema49';
+  var STORAGE_KEY = 'cerema-carte-widget-mode'; // valeurs possibles : 'admin' | 'travaux'
+
+  function showModeTravauxBadge() {
+    if (document.getElementById('mode-travaux-badge')) return;
+    var badge = document.createElement('div');
+    badge.id = 'mode-travaux-badge';
+    badge.className = 'mode-travaux-badge';
+    badge.textContent = '🚧 Mode travaux — enregistrement uniquement';
+    document.body.appendChild(badge);
+  }
+
+  function unlock(mode) {
+    window.__modeTravaux = (mode === 'travaux');
+    if (window.__modeTravaux) {
+      document.body.classList.add('mode-travaux');
+      showModeTravauxBadge();
+    }
+    document.getElementById('password-gate-overlay').style.display = 'none';
+    document.getElementById('map-content-wrapper').style.display = 'block';
+    try { sessionStorage.setItem(STORAGE_KEY, mode); } catch (e) {}
+    // Laisse le temps au conteneur d'être visible avant que Leaflet calcule sa taille
+    setTimeout(function () {
+      try {
+        if (typeof map !== 'undefined' && map && typeof map.invalidateSize === 'function') {
+          map.invalidateSize();
+        }
+      } catch (e) {}
+    }, 100);
+  }
+
+  function tryPassword() {
+    var input = document.getElementById('password-gate-input');
+    var error = document.getElementById('password-gate-error');
+    if (input.value === CORRECT_PASSWORD) {
+      unlock('admin');
+    } else {
+      error.classList.add('visible');
+      input.value = '';
+      input.focus();
+    }
+  }
+
+  // Si déjà déverrouillé plus tôt dans cette session de navigation, on saute l'écran
+  var savedMode = null;
+  try { savedMode = sessionStorage.getItem(STORAGE_KEY); } catch (e) {}
+
+  if (savedMode === 'admin' || savedMode === 'travaux') {
+    unlock(savedMode);
+  } else {
+    document.getElementById('password-gate-submit').addEventListener('click', tryPassword);
+    document.getElementById('password-gate-input').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') tryPassword();
+    });
+    document.getElementById('password-gate-travaux-btn').addEventListener('click', function () {
+      unlock('travaux');
+    });
+  }
+})();
+
 // -------------------------------------------------------------------
 // 1) Parsing WKT : gère POLYGON(...) et MULTIPOLYGON(...), avec trous
 // -------------------------------------------------------------------
@@ -1279,14 +1567,14 @@ function classifyMilieuColor(milieu) {
 
 // -------------------------------------------------------------------
 // Couleur associée à un chiffre de notation (état structurel / sécurité usager)
-// Échelle de 1 à 4 : 1=vert foncé, 2=vert clair, 3=orange, 4=rouge
+// Échelle de 1 à 4 : 1=rouge (urgent), 2=orange, 3=vert clair, 4=vert foncé (bon état)
 // -------------------------------------------------------------------
 
 const GRADE_COLORS = {
-  '1': '#1b5e20', // vert foncé
-  '2': '#66bb6a', // vert clair
-  '3': '#f57c00', // orange
-  '4': '#e53935'  // rouge
+  '1': '#e53935', // rouge
+  '2': '#f57c00', // orange
+  '3': '#66bb6a', // vert clair
+  '4': '#1b5e20'  // vert foncé
 };
 
 // Détermine la couleur associée à un chiffre 1-4 (renvoie null si ce n'est pas un chiffre reconnu)
@@ -1308,6 +1596,8 @@ function gradeBadge(value) {
 // -------------------------------------------------------------------
 
 // Calcule les statistiques de santé à partir du registre (dédupliqué par nom, un ouvrage = une seule fois)
+// Note : les noms de variables (bon/surveiller/travaux/urgent) suivent l'ordre des chiffres 1→4,
+// mais le sens réel est désormais 1=urgent … 4=très bon état (voir affichage dans showHealthModal)
 function computePatrimoineHealthStats() {
   const seen = new Set();
   let bon = 0, surveiller = 0, travaux = 0, urgent = 0, nonRenseigne = 0, total = 0;
@@ -1358,13 +1648,13 @@ window.showHealthModal = function () {
         (stats.nonRenseigne > 0 ? ' — dont ' + stats.nonRenseigne + ' sans état renseigné' : '') +
       '</p>' +
       '<div class="health-bars">' +
-        healthBarHtml('Très bon état (1)', stats.bon, stats.totalConnu, '#1b5e20') +
-        healthBarHtml('Bon état (2)', stats.surveiller, stats.totalConnu, '#66bb6a') +
-        healthBarHtml('Travaux nécessaires (3)', stats.travaux, stats.totalConnu, '#f57c00') +
-        healthBarHtml('Intervention urgente (4)', stats.urgent, stats.totalConnu, '#e53935') +
+        healthBarHtml('Intervention urgente (1)', stats.bon, stats.totalConnu, '#e53935') +
+        healthBarHtml('Travaux nécessaires (2)', stats.surveiller, stats.totalConnu, '#f57c00') +
+        healthBarHtml('Bon état (3)', stats.travaux, stats.totalConnu, '#66bb6a') +
+        healthBarHtml('Très bon état (4)', stats.urgent, stats.totalConnu, '#1b5e20') +
       '</div>' +
       '<p class="health-note">Pourcentages calculés sur les ' + stats.totalConnu + ' ouvrage(s) ayant un état structurel renseigné (dernière visite). ' +
-      '1 : très bon état — 2 : bon état — 3 : travaux nécessaires — 4 : intervention urgente.</p>' +
+      '1 : intervention urgente — 2 : travaux nécessaires — 3 : bon état — 4 : très bon état.</p>' +
     '</div>';
   document.body.appendChild(overlay);
 };
@@ -1727,10 +2017,10 @@ window.showGuideModal = function () {
       '<tr style="background:#f5f5f5;"><th style="text-align:left;padding:6px;border:1px solid #ddd;">Bouton</th><th style="text-align:left;padding:6px;border:1px solid #ddd;">Fonction</th></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📄 Voir la/les fiche(s) visite(s)</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la ou les fiches de visite (onglets si plusieurs, triées de la plus récente à la plus ancienne). Message si aucune visite.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">➕ Créer une fiche visite</td><td style="padding:6px;border:1px solid #ddd;">Redirige vers le formulaire externe de saisie d\'une nouvelle visite.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">🧭 Naviguer</td><td style="padding:6px;border:1px solid #ddd;">Ouvre Google Maps centré sur l\'ouvrage.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📷 Photo(s) initial de l\'ouvrage</td><td style="padding:6px;border:1px solid #ddd;">Affiche jusqu\'à 4 photos de référence avec description.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à tous les ouvrages.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">🚧 Travaux</td><td style="padding:6px;border:1px solid #ddd;">Affiche l\'historique des interventions réalisées sur l\'ouvrage (date, mécanique/usages, type d\'action, commentaire).</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">🚧 Historique des travaux</td><td style="padding:6px;border:1px solid #ddd;">Affiche l\'historique des interventions réalisées sur l\'ouvrage (date, mécanique/usages, type d\'action, commentaire).</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">⚠️ Travaux à prévoir</td><td style="padding:6px;border:1px solid #ddd;">Note libre décrivant les travaux à planifier, avec une case "Travaux standard" ou "Travaux urgent". Si "urgent" est coché, le pin de l\'ouvrage clignote en rouge sur la carte.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📥 Télécharger la fiche PDF</td><td style="padding:6px;border:1px solid #ddd;">Génère la fiche synthétique complète de l\'ouvrage (informations, illustration, objets, synthèse des visites, historique des interventions), suivie de l\'ensemble des fiches de visite détaillées.</td></tr>' +
     '</table>' +
 
@@ -1916,8 +2206,33 @@ async function getFreshAccessToken() {
   return await grist.docApi.getAccessToken({ readOnly: true });
 }
 
+// Décode le payload d'un JWT (sans vérifier la signature, juste pour en extraire des infos)
+function decodeJwtPayload(token) {
+  try {
+    const payloadPart = token.split('.')[1];
+    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '=='.slice(0, (4 - (base64.length % 4)) % 4);
+    const json = atob(padded);
+    return JSON.parse(json);
+  } catch (e) {
+    return null;
+  }
+}
+
 function buildAttachmentUrl(tokenInfo, attachmentId) {
-  return tokenInfo.baseUrl + '/attachments/' + attachmentId + '/download?auth=' + tokenInfo.token;
+  let baseUrl = tokenInfo.baseUrl;
+
+  // tokenInfo.baseUrl utilise parfois l'identifiant "court" du document (tel qu'affiché
+  // dans l'URL du navigateur), qui ne correspond pas toujours à l'identifiant complet
+  // attendu par l'API de téléchargement des pièces jointes. Le jeton d'accès (JWT), lui,
+  // contient l'identifiant complet et fiable du document (docId) : on l'utilise pour
+  // reconstruire l'URL de base si besoin.
+  const payload = decodeJwtPayload(tokenInfo.token);
+  if (payload && payload.docId) {
+    baseUrl = baseUrl.replace(/\/docs\/[^/]+$/, '/docs/' + payload.docId);
+  }
+
+  return baseUrl + '/attachments/' + attachmentId + '/download?auth=' + tokenInfo.token;
 }
 
 // value peut être : vide, une URL en texte, ou un tableau d'ids (colonne Pièce jointe Grist)
@@ -2080,6 +2395,9 @@ window.__structureRegistry = [];
 // Planification des visites du calendrier : { 'AAAA-MM-JJ': [ { rowId, nom }, ... ] }
 // Stockée dans les options du widget Grist (grist.setOption / grist.onOptions), PAS dans une colonne de table.
 window.__visitPlanning = {};
+// Travaux à prévoir (planification future, distincte de l'historique) : { 'nom ouvrage normalisé': { texte, standard, urgent } }
+// Stockée elle aussi dans les options du widget Grist (grist.setOption / grist.onOptions).
+window.__travauxAPrevoir = {};
 
 // Résout une liste de photos (URL ou pièce jointe Grist) et retourne le HTML des emplacements
 async function resolvePhotoSlotsHtml(photos) {
@@ -2097,7 +2415,7 @@ async function resolvePhotoSlotsHtml(photos) {
     const src = resolveImageValue(p.url, tokenInfo);
     let img;
     if (src) {
-      img = '<img src="' + escapeHtml(src) + '" alt="photo" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'), {className:\'no-photo\', textContent:\'Image inaccessible (voir console)\'}))" />';
+      img = '<img src="' + escapeHtml(src) + '" alt="photo" onerror="console.error(\'Échec de chargement, URL :\', this.src); this.replaceWith(Object.assign(document.createElement(\'div\'), {className:\'no-photo\', textContent:\'Image inaccessible (voir console)\'}))" />';
     } else if (hasRawValue && tokenError) {
       img = '<div class="no-photo">' + escapeHtml(tokenError) + '</div>';
       console.error('Photo ' + (i + 1) + ' : valeur brute présente mais non résolue ->', p.url);
@@ -2388,6 +2706,7 @@ window.showTravauxModal = function (travauxId, nom) {
   window.closePhotoModal();
 
   const travaux = window.__travauxStore[travauxId] || [];
+  const todayIso = new Date().toISOString().slice(0, 10);
 
   const rowsHtml = travaux.length > 0
     ? travaux.map(t =>
@@ -2400,6 +2719,13 @@ window.showTravauxModal = function (travauxId, nom) {
       ).join('')
     : '<tr><td colspan="4" style="text-align:center; color:#888;">Aucune intervention enregistrée pour cet ouvrage.</td></tr>';
 
+  const historyBlockHtml =
+    '<p class="travaux-history-title">Historique des interventions</p>' +
+    '<table class="travaux-table">' +
+      '<thead><tr><th>Date de réalisation</th><th>Mécanique/Usages</th><th>Type d\'action</th><th>Commentaire</th></tr></thead>' +
+      '<tbody id="travaux-history-tbody">' + rowsHtml + '</tbody>' +
+    '</table>';
+
   const overlay = document.createElement('div');
   overlay.className = 'photo-modal-overlay';
   overlay.id = 'photo-modal-overlay';
@@ -2407,13 +2733,87 @@ window.showTravauxModal = function (travauxId, nom) {
   overlay.innerHTML =
     '<div class="photo-modal travaux-modal">' +
       '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
-      '<h3>🚧 Historique des interventions — ' + escapeHtml(nom || '') + '</h3>' +
-      '<table class="travaux-table">' +
-        '<thead><tr><th>Date de réalisation</th><th>Mécanique/Usages</th><th>Type d\'action</th><th>Commentaire</th></tr></thead>' +
-        '<tbody>' + rowsHtml + '</tbody>' +
-      '</table>' +
+      '<h3>🚧 Travaux — ' + escapeHtml(nom || '') + '</h3>' +
+      '<div class="travaux-add-form">' +
+        '<h4>➕ Enregistrer une nouvelle intervention</h4>' +
+        '<label for="travaux-add-date">Date de réalisation</label>' +
+        '<input type="date" id="travaux-add-date" value="' + todayIso + '">' +
+        '<label for="travaux-add-mecanique">Mécanique / Usages</label>' +
+        '<input type="text" id="travaux-add-mecanique" placeholder="Ex : Mécanique">' +
+        '<label for="travaux-add-type">Type d\'action</label>' +
+        '<input type="text" id="travaux-add-type" placeholder="Ex : Réparation, entretien...">' +
+        '<label for="travaux-add-commentaire">Commentaire</label>' +
+        '<textarea id="travaux-add-commentaire" rows="3" placeholder="Décrivez l\'intervention réalisée..."></textarea>' +
+        '<button id="travaux-add-save-btn">💾 Enregistrer l\'intervention</button>' +
+        '<div class="travaux-add-status" id="travaux-add-status"></div>' +
+      '</div>' +
+      '<div id="travaux-history-block">' + historyBlockHtml + '</div>' +
     '</div>';
   document.body.appendChild(overlay);
+
+  document.getElementById('travaux-add-save-btn').onclick = async function () {
+    const saveBtn = this;
+    const statusEl = document.getElementById('travaux-add-status');
+    const values = {
+      date: document.getElementById('travaux-add-date').value,
+      mecaniqueUsage: document.getElementById('travaux-add-mecanique').value.trim(),
+      typeAction: document.getElementById('travaux-add-type').value.trim(),
+      commentaire: document.getElementById('travaux-add-commentaire').value.trim()
+    };
+
+    if (!values.mecaniqueUsage && !values.typeAction && !values.commentaire) {
+      statusEl.className = 'travaux-add-status error';
+      statusEl.textContent = 'Merci de renseigner au moins un champ avant d\'enregistrer.';
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Enregistrement…';
+    statusEl.className = 'travaux-add-status';
+    statusEl.textContent = '';
+
+    const result = await window.__saveTravauxRecord(nom, values);
+
+    if (result.ok) {
+      statusEl.className = 'travaux-add-status success';
+      statusEl.textContent = '✅ Intervention enregistrée avec succès.';
+      document.getElementById('travaux-add-mecanique').value = '';
+      document.getElementById('travaux-add-type').value = '';
+      document.getElementById('travaux-add-commentaire').value = '';
+
+      if (!window.__travauxStore[travauxId]) window.__travauxStore[travauxId] = [];
+      window.__travauxStore[travauxId].unshift({
+        date: values.date,
+        mecaniqueUsage: values.mecaniqueUsage,
+        typeAction: values.typeAction,
+        commentaire: values.commentaire
+      });
+      const historyBlock = document.getElementById('travaux-history-block');
+      if (historyBlock) {
+        const updated = window.__travauxStore[travauxId];
+        const updatedRowsHtml = updated.map(t =>
+          '<tr>' +
+            '<td>' + escapeHtml(t.date || '—') + '</td>' +
+            '<td>' + escapeHtml(t.mecaniqueUsage || '—') + '</td>' +
+            '<td>' + escapeHtml(t.typeAction || '—') + '</td>' +
+            '<td>' + escapeHtml(t.commentaire || '—') + '</td>' +
+          '</tr>'
+        ).join('');
+        historyBlock.innerHTML =
+          '<p class="travaux-history-title">Historique des interventions</p>' +
+          '<table class="travaux-table">' +
+            '<thead><tr><th>Date de réalisation</th><th>Mécanique/Usages</th><th>Type d\'action</th><th>Commentaire</th></tr></thead>' +
+            '<tbody>' + updatedRowsHtml + '</tbody>' +
+          '</table>';
+      }
+    } else {
+      statusEl.className = 'travaux-add-status error';
+      statusEl.textContent = '❌ Erreur lors de l\'enregistrement : ' + (result.message || 'raison inconnue') + '. Vérifiez que le widget a bien un accès complet au document (voir message ci-dessous).';
+    }
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = '💾 Enregistrer l\'intervention';
+  };
 };
 
 // -------------------------------------------------------------------
@@ -2536,6 +2936,132 @@ async function saveVisitPlanning(showFeedback) {
   }
   return ok;
 }
+
+// -------------------------------------------------------------------
+// "Travaux à prévoir" : note de planification future par ouvrage, distincte de
+// l'historique des interventions déjà réalisées. Stockée dans les options du widget
+// Grist (comme la planification des visites), PAS dans une colonne de table.
+// -------------------------------------------------------------------
+
+// Enregistre window.__travauxAPrevoir dans les options du widget (+ sauvegarde locale de secours).
+async function saveTravauxAPrevoir(showFeedback) {
+  let ok = false;
+  try {
+    await grist.setOption('travauxAPrevoir', window.__travauxAPrevoir);
+    ok = true;
+  } catch (err) {
+    console.error('Impossible d\'enregistrer les travaux à prévoir dans les options du widget Grist :', err);
+  }
+  try {
+    localStorage.setItem('cerema-travaux-a-prevoir-backup', JSON.stringify(window.__travauxAPrevoir));
+  } catch (err) { /* pas grave, sauvegarde locale seulement en secours */ }
+
+  if (showFeedback) {
+    showCoordToast(ok ? '💾 Travaux à prévoir enregistrés' : '⚠️ Échec de l\'enregistrement, réessayez');
+  }
+  return ok;
+}
+
+// Fait clignoter en rouge (ou arrête de faire clignoter) le pin d'un ouvrage selon
+// que des travaux urgents sont prévus ou non pour lui.
+function setOuvrageBlink(marker, urgent) {
+  if (!marker || typeof marker.getElement !== 'function') return;
+  const el = marker.getElement();
+  if (!el) return;
+  if (urgent) {
+    el.classList.add('ouvrage-marker-urgent');
+  } else {
+    el.classList.remove('ouvrage-marker-urgent');
+  }
+}
+
+// Applique l'état de clignotement à tous les ouvrages du registre correspondant à une clé donnée
+// (une clé = un nom d'ouvrage normalisé ; peut concerner plusieurs marqueurs si doublon de nom).
+function applyOuvrageBlink(travauxPrevoirKey) {
+  const entry = window.__travauxAPrevoir[travauxPrevoirKey];
+  const urgent = !!(entry && entry.urgent);
+  window.__structureRegistry.forEach(regEntry => {
+    if (regEntry.travauxPrevoirKey === travauxPrevoirKey) {
+      setOuvrageBlink(regEntry.marker, urgent);
+    }
+  });
+}
+
+// Réapplique le clignotement sur tout le registre (utilisé après chargement des options Grist,
+// puisque les marqueurs peuvent avoir été créés avant que les options n'arrivent).
+function applyAllOuvrageBlinks() {
+  window.__structureRegistry.forEach(regEntry => {
+    const entry = window.__travauxAPrevoir[regEntry.travauxPrevoirKey];
+    setOuvrageBlink(regEntry.marker, !!(entry && entry.urgent));
+  });
+}
+
+// Modale "Travaux à prévoir" : une note de planification (texte libre + type standard/urgent)
+window.showTravauxAPrevoirModal = function (travauxPrevoirKey, nom) {
+  window.closePhotoModal();
+
+  const existing = window.__travauxAPrevoir[travauxPrevoirKey] || { texte: '', standard: false, urgent: false };
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal travaux-prevoir-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      '<h3>⚠️ Travaux à prévoir — ' + escapeHtml(nom || '') + '</h3>' +
+      '<div class="travaux-add-form travaux-prevoir-form">' +
+        '<label for="travaux-prevoir-texte">Travaux à prévoir</label>' +
+        '<textarea id="travaux-prevoir-texte" rows="4" placeholder="Décrivez les travaux à prévoir pour cet ouvrage...">' + escapeHtml(existing.texte || '') + '</textarea>' +
+        '<div class="travaux-prevoir-checkboxes">' +
+          '<label><input type="checkbox" id="travaux-prevoir-standard"' + (existing.standard ? ' checked' : '') + '> <span class="label-standard">Travaux standard</span></label>' +
+          '<label><input type="checkbox" id="travaux-prevoir-urgent"' + (existing.urgent ? ' checked' : '') + '> <span class="label-urgent">Travaux urgent</span></label>' +
+        '</div>' +
+        '<button id="travaux-prevoir-save-btn">💾 Enregistrer</button>' +
+        '<div class="travaux-add-status" id="travaux-prevoir-status"></div>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  const standardBox = document.getElementById('travaux-prevoir-standard');
+  const urgentBox = document.getElementById('travaux-prevoir-urgent');
+  // Les deux cases sont exclusives l'une de l'autre (un travail est soit standard, soit urgent)
+  standardBox.addEventListener('change', function () {
+    if (standardBox.checked) urgentBox.checked = false;
+  });
+  urgentBox.addEventListener('change', function () {
+    if (urgentBox.checked) standardBox.checked = false;
+  });
+
+  document.getElementById('travaux-prevoir-save-btn').onclick = async function () {
+    const saveBtn = this;
+    const statusEl = document.getElementById('travaux-prevoir-status');
+    const texte = document.getElementById('travaux-prevoir-texte').value.trim();
+    const standard = standardBox.checked;
+    const urgent = urgentBox.checked;
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Enregistrement…';
+    statusEl.className = 'travaux-add-status';
+    statusEl.textContent = '';
+
+    if (!texte && !standard && !urgent) {
+      delete window.__travauxAPrevoir[travauxPrevoirKey];
+    } else {
+      window.__travauxAPrevoir[travauxPrevoirKey] = { texte: texte, standard: standard, urgent: urgent };
+    }
+
+    const ok = await saveTravauxAPrevoir(false);
+    applyOuvrageBlink(travauxPrevoirKey);
+
+    saveBtn.disabled = false;
+    saveBtn.textContent = '💾 Enregistrer';
+    statusEl.className = 'travaux-add-status ' + (ok ? 'success' : 'error');
+    statusEl.textContent = ok
+      ? '✅ Travaux à prévoir enregistrés.'
+      : '❌ Erreur lors de l\'enregistrement. Vérifiez que le widget a bien un accès complet au document.';
+  };
+};
 
 // Bouton "Enregistrer" du calendrier : sauvegarde immédiate et explicite, avec confirmation visible
 window.__saveCalendarNow = function () {
@@ -2921,6 +3447,9 @@ function applyStructureFilter(predicate) {
     if (predicate(entry)) {
       entry.marker.addTo(structureLayerGroup);
       matchedLatLngs.push(entry.marker.getLatLng());
+      // clearLayers() peut recréer l'élément DOM de l'icône : on réapplique le clignotement au besoin
+      const prevoirEntry = window.__travauxAPrevoir[entry.travauxPrevoirKey];
+      setOuvrageBlink(entry.marker, !!(prevoirEntry && prevoirEntry.urgent));
     }
   });
 
@@ -3517,6 +4046,8 @@ async function drawRecords(records, mappings) {
       const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
       const nom = mapped.NomStructure || 'Ouvrage';
       const imageSrc = resolveImageValue(mapped.ImageStructure, tokenInfo);
+      // Clé normalisée utilisée pour relier cet ouvrage à sa note "Travaux à prévoir" (même logique que les travaux/visites, reliés par nom)
+      const travauxPrevoirKey = nom.toString().trim().toLowerCase();
 
       // Domaine(s) de cet ouvrage : retrouvé(s) via sa Famille dans le bloc de référence
       // (une Famille peut appartenir à plusieurs Domaines), jamais lu directement sur cette ligne.
@@ -3530,7 +4061,8 @@ async function drawRecords(records, mappings) {
         nom: nom,
         domaine: domainesStructure, // tableau : une Famille peut appartenir à plusieurs Domaines
         famille: familleStructureNom,
-        groupe: formatTextValue(mapped.GroupeStructure)
+        groupe: formatTextValue(mapped.GroupeStructure),
+        travauxPrevoirKey: travauxPrevoirKey
       });
       const registryEntry = window.__structureRegistry[window.__structureRegistry.length - 1];
 
@@ -3538,6 +4070,8 @@ async function drawRecords(records, mappings) {
         icon: createStructureIcon(imageSrc, color)
       }).addTo(structureLayerGroup);
       registryEntry.marker = marker;
+      // Si des travaux urgents sont déjà prévus pour cet ouvrage (chargés depuis les options Grist), fait clignoter le pin
+      setOuvrageBlink(marker, !!(window.__travauxAPrevoir[travauxPrevoirKey] && window.__travauxAPrevoir[travauxPrevoirKey].urgent));
 
       const domaineAuto = findDomaineForPoint(lat, lng, domainePolygonsGlobal);
       const domaineGeo = domaineAuto || mapped.DomaineStructure || '—';
@@ -3546,8 +4080,6 @@ async function drawRecords(records, mappings) {
       const classifGroupe = formatTextValue(mapped.GroupeStructure) || '—';
       const lienFiche = mapped.LienFicheStructure || '';
       const lienFormulaire = mapped.LienFormulaireStructure || '';
-      const lienMaps = 'https://www.google.com/maps?q=' + lat + ',' + lng;
-
       // Visites reliées à cet ouvrage par nom (collectées indépendamment de la position de ligne)
       const visits = visitsByGroupKey.get(key) || [];
 
@@ -3584,13 +4116,25 @@ async function drawRecords(records, mappings) {
         warningBox = '<div class="warning-box" id="' + warningId + '">Il n\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.</div>';
       }
 
-      // Stockage des 4 emplacements photo "initiale" de l\'ouvrage (pris sur l'entrée principale)
+      // Stockage des 4 emplacements photo "initiale" de l'ouvrage.
+      // Important : on ne se limite pas à l'entrée "primary" (celle qui porte les coordonnées) car,
+      // selon la façon dont la table est remplie, les photos peuvent avoir été saisies sur une AUTRE
+      // ligne du même groupe (même nom d'ouvrage). On cherche donc, pour chaque emplacement 1 à 4,
+      // la première ligne du groupe qui a réellement une valeur non vide.
+      function firstNonEmptyInGroup(fieldName) {
+        for (const e of entries) {
+          const v = e.mapped[fieldName];
+          const hasValue = Array.isArray(v) ? v.length > 0 : !!v;
+          if (hasValue) return v;
+        }
+        return '';
+      }
       const photoStructureId = 'photo-structure-' + Math.random().toString(36).slice(2);
       window.__photoStore[photoStructureId] = [
-        { url: mapped.Photo1Structure || '', desc: mapped.DescriptionPhoto1Structure || '' },
-        { url: mapped.Photo2Structure || '', desc: mapped.DescriptionPhoto2Structure || '' },
-        { url: mapped.Photo3Structure || '', desc: mapped.DescriptionPhoto3Structure || '' },
-        { url: mapped.Photo4Structure || '', desc: mapped.DescriptionPhoto4Structure || '' }
+        { url: firstNonEmptyInGroup('Photo1Structure'), desc: firstNonEmptyInGroup('DescriptionPhoto1Structure') },
+        { url: firstNonEmptyInGroup('Photo2Structure'), desc: firstNonEmptyInGroup('DescriptionPhoto2Structure') },
+        { url: firstNonEmptyInGroup('Photo3Structure'), desc: firstNonEmptyInGroup('DescriptionPhoto3Structure') },
+        { url: firstNonEmptyInGroup('Photo4Structure'), desc: firstNonEmptyInGroup('DescriptionPhoto4Structure') }
       ];
 
       // Stockage des travaux (interventions) reliés à cet ouvrage, triés du plus récent au plus ancien
@@ -3659,10 +4203,10 @@ async function drawRecords(records, mappings) {
           '<div class="buttons" id="btns-default-' + objetUid + '">' +
             btnFiche +
             (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
-            '<a class="btn btn-maps" href="' + lienMaps + '" target="_blank" rel="noopener">🧭 Naviguer</a>' +
             '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de l\'ouvrage</a>' +
             '<a class="btn btn-form" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + grilleEvalGlobalId + '\', ' + jsStringLiteral('Grilles d\'évaluation') + ');">📋 Grilles d\'évaluation</a>' +
-            '<a class="btn btn-travaux" href="#" onclick="event.preventDefault(); window.showTravauxModal(\'' + travauxId + '\', ' + jsStringLiteral(nom) + ');">🚧 Travaux</a>' +
+            '<a class="btn btn-travaux" href="#" onclick="event.preventDefault(); window.showTravauxModal(\'' + travauxId + '\', ' + jsStringLiteral(nom) + ');">🚧 Historique des travaux</a>' +
+            '<a class="btn btn-travaux-prevoir" href="#" onclick="event.preventDefault(); window.showTravauxAPrevoirModal(' + jsStringLiteral(travauxPrevoirKey) + ', ' + jsStringLiteral(nom) + ');">⚠️ Travaux à prévoir</a>' +
             '<a class="btn btn-pdf-ouvrage" href="#" onclick="event.preventDefault(); window.exportOuvragePdf(\'' + ouvrageId + '\');">📥 Télécharger la fiche PDF</a>' +
           '</div>' +
           '<div class="buttons objet-buttons" id="btns-objet-' + objetUid + '" style="display:none;"></div>' +
@@ -3830,7 +4374,106 @@ grist.ready({
   requiredAccess: 'full'
 });
 
-grist.onRecords((records, mappings) => drawRecords(records, mappings));
+grist.onRecords((records, mappings) => {
+  window.__gristMappings = mappings;
+  drawRecords(records, mappings);
+});
+
+// -------------------------------------------------------------------
+// Enregistrement d'une intervention "Travaux" directement dans la table
+// Grist, sans passer par la vue tableau (utilisé par le formulaire du
+// mode travaux ET par le formulaire d'ajout classique).
+// -------------------------------------------------------------------
+window.__saveTravauxRecord = async function (nomOuvrage, values) {
+  // On construit nous-mêmes l'enregistrement brut à partir de l'objet de
+  // correspondance (mappings) reçu de Grist, en ne prenant QUE les 5 colonnes
+  // "Travaux" une par une. On n'utilise plus mapColumnNamesBack ici : dans ce
+  // widget (qui a ~80 colonnes configurées au total), elle a provoqué des
+  // écritures parasites vers d'autres colonnes (dont une colonne formule),
+  // ce qui bloquait tout l'enregistrement.
+  function getRawColId(friendlyName) {
+    var mappings = window.__gristMappings || {};
+    var raw = mappings[friendlyName];
+    if (!raw) return null;
+    // Si la colonne autorise une sélection multiple, Grist renvoie un tableau :
+    // on prend alors le premier identifiant.
+    if (Array.isArray(raw)) return raw.length > 0 ? raw[0] : null;
+    return raw;
+  }
+
+  function buildRawRecord(dateValue) {
+    var rawRecord = {};
+    var pairs = [
+      ['NomOuvrageTravail', nomOuvrage],
+      ['DateTravail', dateValue],
+      ['MecaniqueUsageTravail', values.mecaniqueUsage],
+      ['TypeActionTravail', values.typeAction],
+      ['CommentaireTravail', values.commentaire]
+    ];
+    var missing = [];
+    for (var i = 0; i < pairs.length; i++) {
+      var friendlyName = pairs[i][0];
+      var value = pairs[i][1];
+      var colId = getRawColId(friendlyName);
+      if (colId) {
+        rawRecord[colId] = value;
+      } else {
+        missing.push(friendlyName);
+      }
+    }
+    return { rawRecord: rawRecord, missing: missing };
+  }
+
+  // Convertit "AAAA-MM-JJ" en nombre de secondes depuis epoch (format attendu
+  // par les colonnes Grist de type Date/DateTime, contrairement au texte brut).
+  function dateStringToEpochSeconds(dateStr) {
+    if (!dateStr) return null;
+    var parts = dateStr.split('-');
+    if (parts.length !== 3) return null;
+    var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10), d = parseInt(parts[2], 10);
+    if (!y || !m || !d) return null;
+    return Math.floor(Date.UTC(y, m - 1, d) / 1000);
+  }
+
+  async function attemptCreate(dateValue) {
+    var built = buildRawRecord(dateValue);
+    if (Object.keys(built.rawRecord).length === 0) {
+      throw new Error(
+        'Aucune des colonnes "Travaux" n\'est mappée dans la configuration du widget. ' +
+        'Ouvrez le panneau de configuration du widget (⚙️ en haut à droite) et associez ' +
+        'les colonnes préfixées "🟧 Travaux" à de vraies colonnes de votre table.'
+      );
+    }
+    if (built.missing.length > 0) {
+      console.warn('Colonnes "Travaux" non mappées (ignorées à l\'enregistrement) : ' + built.missing.join(', '));
+    }
+    console.log('[Travaux] Envoi vers grist.selectedTable.create — fields :', built.rawRecord);
+    return grist.selectedTable.create({ fields: built.rawRecord });
+  }
+
+  // 1ère tentative : la date telle que saisie (texte "AAAA-MM-JJ")
+  try {
+    await attemptCreate(values.date);
+    return { ok: true };
+  } catch (err1) {
+    console.error('Échec de l\'enregistrement travaux (tentative 1, date en texte) :', err1);
+
+    // 2e tentative : si la colonne cible est de type Date/DateTime, Grist attend
+    // un nombre (secondes depuis epoch) et non une chaîne de texte.
+    var epoch = dateStringToEpochSeconds(values.date);
+    if (epoch !== null) {
+      try {
+        await attemptCreate(epoch);
+        return { ok: true };
+      } catch (err2) {
+        console.error('Échec de l\'enregistrement travaux (tentative 2, date en epoch) :', err2);
+        return { ok: false, message: (err2 && err2.message) ? err2.message : String(err2) };
+      }
+    }
+
+    return { ok: false, message: (err1 && err1.message) ? err1.message : String(err1) };
+  }
+};
 
 // Charge la planification du calendrier depuis les options du widget (persistée par Grist, sans colonne de table),
 // et se met à jour automatiquement si elle est modifiée ailleurs (autre utilisateur, autre session).
@@ -3848,6 +4491,20 @@ try {
       }
     }
     if (document.getElementById('calendar-modal-overlay')) renderCalendarMonth();
+
+    // Travaux à prévoir : même mécanisme (options du widget Grist), utilisé pour faire
+    // clignoter en rouge le pin des ouvrages ayant des travaux urgents prévus.
+    if (options && options.travauxAPrevoir && Object.keys(options.travauxAPrevoir).length > 0) {
+      window.__travauxAPrevoir = options.travauxAPrevoir;
+    } else {
+      try {
+        const backupPrevoir = localStorage.getItem('cerema-travaux-a-prevoir-backup');
+        window.__travauxAPrevoir = backupPrevoir ? JSON.parse(backupPrevoir) : {};
+      } catch (err) {
+        window.__travauxAPrevoir = {};
+      }
+    }
+    applyAllOuvrageBlinks();
   });
 } catch (err) {
   console.error('grist.onOptions indisponible : la planification du calendrier ne pourra pas être sauvegardée.', err);
