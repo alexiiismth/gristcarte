@@ -2824,6 +2824,10 @@ window.__showObjetFiche = async function (storeId, idx, ouvrageNom) {
   const titleEl = overlay.querySelector('h3');
   if (titleEl) titleEl.textContent = '🗂️ ' + objet.nom;
 
+  // Mémorise l'objet actuellement affiché, utilisé par exportObjetFicheToPdf()
+  window.__activeObjetStoreId = storeId;
+  window.__activeObjetIdx = idx;
+
   const area = document.getElementById('objets-list-content-area');
   if (!area) return;
 
@@ -2834,7 +2838,8 @@ window.__showObjetFiche = async function (storeId, idx, ouvrageNom) {
       jsStringLiteral('🗂️ Objets — ' + (ouvrageNom || '')) + ';">← Retour à la liste des objets</a>' +
     '<div class="objet-fiche-photo"><p>Chargement de la photo…</p></div>' +
     (objet.type ? '<div class="modal-row"><b>Type :</b> ' + escapeHtml(objet.type) + '</div>' : '') +
-    '<div class="modal-row"><b>Utilité / Description :</b> ' + escapeHtml(objet.utilite || '—') + '</div>';
+    '<div class="modal-row"><b>Utilité / Description :</b> ' + escapeHtml(objet.utilite || '—') + '</div>' +
+    '<button class="btn btn-form fiche-pdf-btn" onclick="window.exportObjetFicheToPdf()">🖨️ Exporter en PDF</button>';
 
   let tokenInfo = null;
   let tokenError = '';
@@ -2868,6 +2873,41 @@ window.__showObjetFiche = async function (storeId, idx, ouvrageNom) {
     const photoZone = stillOpen.querySelector('.objet-fiche-photo');
     if (photoZone) photoZone.innerHTML = photoHtml;
   }
+};
+
+// Construit une fiche imprimable (photo, nom, type, utilité) et lance l'impression/export PDF
+// pour l'objet actuellement affiché dans la modale "Voir les objets"
+window.exportObjetFicheToPdf = async function () {
+  const storeId = window.__activeObjetStoreId;
+  const idx = window.__activeObjetIdx;
+  const objets = window.__objetsDetailStore[storeId] || [];
+  const objet = objets[idx];
+  if (!objet) return;
+
+  const container = document.getElementById('pdf-export-container');
+  if (!container) return;
+
+  container.innerHTML = '<p>Préparation du document…</p>';
+
+  const photosHtml = await buildPdfPhotosHtml([{ url: objet.photo, desc: '' }]);
+
+  container.innerHTML =
+    '<div class="pdf-header">' +
+      '<h1>Fiche objet</h1>' +
+      '<div class="pdf-header-sub">' + escapeHtml(objet.nom || '—') + '</div>' +
+    '</div>' +
+    '<table class="pdf-info-table">' +
+      '<tr>' +
+        '<th>Nom de l\'objet</th><td>' + escapeHtml(objet.nom || '—') + '</td>' +
+        '<th>Type</th><td>' + escapeHtml(objet.type || '—') + '</td>' +
+      '</tr>' +
+    '</table>' +
+    '<div class="pdf-section"><h3>Utilité / Description</h3><p>' + escapeHtml(objet.utilite || '—') + '</p></div>' +
+    '<div class="pdf-section"><h3>Photo</h3><div class="pdf-photo-grid">' + photosHtml + '</div></div>' +
+    '<div class="pdf-footer">Carte interactive développée par l\'agence d\'Angers du Cerema</div>';
+
+  await waitForImagesToLoad(container);
+  window.print();
 };
 
 // -------------------------------------------------------------------
