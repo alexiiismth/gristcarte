@@ -1567,14 +1567,14 @@ function classifyMilieuColor(milieu) {
 
 // -------------------------------------------------------------------
 // Couleur associée à un chiffre de notation (état structurel / sécurité usager)
-// Échelle de 1 à 4 : 1=rouge (urgent), 2=orange, 3=vert clair, 4=vert foncé (bon état)
+// Échelle de 1 à 4 : 1=vert foncé, 2=vert clair, 3=orange, 4=rouge
 // -------------------------------------------------------------------
 
 const GRADE_COLORS = {
-  '1': '#e53935', // rouge
-  '2': '#f57c00', // orange
-  '3': '#66bb6a', // vert clair
-  '4': '#1b5e20'  // vert foncé
+  '1': '#1b5e20', // vert foncé
+  '2': '#66bb6a', // vert clair
+  '3': '#f57c00', // orange
+  '4': '#e53935'  // rouge
 };
 
 // Détermine la couleur associée à un chiffre 1-4 (renvoie null si ce n'est pas un chiffre reconnu)
@@ -1596,8 +1596,6 @@ function gradeBadge(value) {
 // -------------------------------------------------------------------
 
 // Calcule les statistiques de santé à partir du registre (dédupliqué par nom, un ouvrage = une seule fois)
-// Note : les noms de variables (bon/surveiller/travaux/urgent) suivent l'ordre des chiffres 1→4,
-// mais le sens réel est désormais 1=urgent … 4=très bon état (voir affichage dans showHealthModal)
 function computePatrimoineHealthStats() {
   const seen = new Set();
   let bon = 0, surveiller = 0, travaux = 0, urgent = 0, nonRenseigne = 0, total = 0;
@@ -1648,13 +1646,13 @@ window.showHealthModal = function () {
         (stats.nonRenseigne > 0 ? ' — dont ' + stats.nonRenseigne + ' sans état renseigné' : '') +
       '</p>' +
       '<div class="health-bars">' +
-        healthBarHtml('Intervention urgente (1)', stats.bon, stats.totalConnu, '#e53935') +
-        healthBarHtml('Travaux nécessaires (2)', stats.surveiller, stats.totalConnu, '#f57c00') +
-        healthBarHtml('Bon état (3)', stats.travaux, stats.totalConnu, '#66bb6a') +
-        healthBarHtml('Très bon état (4)', stats.urgent, stats.totalConnu, '#1b5e20') +
+        healthBarHtml('Très bon état (1)', stats.bon, stats.totalConnu, '#1b5e20') +
+        healthBarHtml('Bon état (2)', stats.surveiller, stats.totalConnu, '#66bb6a') +
+        healthBarHtml('Travaux nécessaires (3)', stats.travaux, stats.totalConnu, '#f57c00') +
+        healthBarHtml('Intervention urgente (4)', stats.urgent, stats.totalConnu, '#e53935') +
       '</div>' +
       '<p class="health-note">Pourcentages calculés sur les ' + stats.totalConnu + ' ouvrage(s) ayant un état structurel renseigné (dernière visite). ' +
-      '1 : intervention urgente — 2 : travaux nécessaires — 3 : bon état — 4 : très bon état.</p>' +
+      '1 : très bon état — 2 : bon état — 3 : travaux nécessaires — 4 : intervention urgente.</p>' +
     '</div>';
   document.body.appendChild(overlay);
 };
@@ -2206,33 +2204,8 @@ async function getFreshAccessToken() {
   return await grist.docApi.getAccessToken({ readOnly: true });
 }
 
-// Décode le payload d'un JWT (sans vérifier la signature, juste pour en extraire des infos)
-function decodeJwtPayload(token) {
-  try {
-    const payloadPart = token.split('.')[1];
-    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64 + '=='.slice(0, (4 - (base64.length % 4)) % 4);
-    const json = atob(padded);
-    return JSON.parse(json);
-  } catch (e) {
-    return null;
-  }
-}
-
 function buildAttachmentUrl(tokenInfo, attachmentId) {
-  let baseUrl = tokenInfo.baseUrl;
-
-  // tokenInfo.baseUrl utilise parfois l'identifiant "court" du document (tel qu'affiché
-  // dans l'URL du navigateur), qui ne correspond pas toujours à l'identifiant complet
-  // attendu par l'API de téléchargement des pièces jointes. Le jeton d'accès (JWT), lui,
-  // contient l'identifiant complet et fiable du document (docId) : on l'utilise pour
-  // reconstruire l'URL de base si besoin.
-  const payload = decodeJwtPayload(tokenInfo.token);
-  if (payload && payload.docId) {
-    baseUrl = baseUrl.replace(/\/docs\/[^/]+$/, '/docs/' + payload.docId);
-  }
-
-  return baseUrl + '/attachments/' + attachmentId + '/download?auth=' + tokenInfo.token;
+  return tokenInfo.baseUrl + '/attachments/' + attachmentId + '/download?auth=' + tokenInfo.token;
 }
 
 // value peut être : vide, une URL en texte, ou un tableau d'ids (colonne Pièce jointe Grist)
@@ -2415,7 +2388,7 @@ async function resolvePhotoSlotsHtml(photos) {
     const src = resolveImageValue(p.url, tokenInfo);
     let img;
     if (src) {
-      img = '<img src="' + escapeHtml(src) + '" alt="photo" onerror="console.error(\'Échec de chargement, URL :\', this.src); this.replaceWith(Object.assign(document.createElement(\'div\'), {className:\'no-photo\', textContent:\'Image inaccessible (voir console)\'}))" />';
+      img = '<img src="' + escapeHtml(src) + '" alt="photo" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'), {className:\'no-photo\', textContent:\'Image inaccessible (voir console)\'}))" />';
     } else if (hasRawValue && tokenError) {
       img = '<div class="no-photo">' + escapeHtml(tokenError) + '</div>';
       console.error('Photo ' + (i + 1) + ' : valeur brute présente mais non résolue ->', p.url);
@@ -4116,25 +4089,13 @@ async function drawRecords(records, mappings) {
         warningBox = '<div class="warning-box" id="' + warningId + '">Il n\'existe aucune fiche liée à cet ouvrage, veuillez en créer une pour accéder à ce paramètre.</div>';
       }
 
-      // Stockage des 4 emplacements photo "initiale" de l'ouvrage.
-      // Important : on ne se limite pas à l'entrée "primary" (celle qui porte les coordonnées) car,
-      // selon la façon dont la table est remplie, les photos peuvent avoir été saisies sur une AUTRE
-      // ligne du même groupe (même nom d'ouvrage). On cherche donc, pour chaque emplacement 1 à 4,
-      // la première ligne du groupe qui a réellement une valeur non vide.
-      function firstNonEmptyInGroup(fieldName) {
-        for (const e of entries) {
-          const v = e.mapped[fieldName];
-          const hasValue = Array.isArray(v) ? v.length > 0 : !!v;
-          if (hasValue) return v;
-        }
-        return '';
-      }
+      // Stockage des 4 emplacements photo "initiale" de l\'ouvrage (pris sur l'entrée principale)
       const photoStructureId = 'photo-structure-' + Math.random().toString(36).slice(2);
       window.__photoStore[photoStructureId] = [
-        { url: firstNonEmptyInGroup('Photo1Structure'), desc: firstNonEmptyInGroup('DescriptionPhoto1Structure') },
-        { url: firstNonEmptyInGroup('Photo2Structure'), desc: firstNonEmptyInGroup('DescriptionPhoto2Structure') },
-        { url: firstNonEmptyInGroup('Photo3Structure'), desc: firstNonEmptyInGroup('DescriptionPhoto3Structure') },
-        { url: firstNonEmptyInGroup('Photo4Structure'), desc: firstNonEmptyInGroup('DescriptionPhoto4Structure') }
+        { url: mapped.Photo1Structure || '', desc: mapped.DescriptionPhoto1Structure || '' },
+        { url: mapped.Photo2Structure || '', desc: mapped.DescriptionPhoto2Structure || '' },
+        { url: mapped.Photo3Structure || '', desc: mapped.DescriptionPhoto3Structure || '' },
+        { url: mapped.Photo4Structure || '', desc: mapped.DescriptionPhoto4Structure || '' }
       ];
 
       // Stockage des travaux (interventions) reliés à cet ouvrage, triés du plus récent au plus ancien
