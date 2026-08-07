@@ -191,6 +191,74 @@
     min-width: 320px;
   }
 
+  .objet-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 2px;
+    min-width: 260px;
+  }
+  .objet-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+    text-decoration: none;
+  }
+  .objet-list-item:hover { background: #ececec; }
+  .objet-list-item .objet-list-type {
+    font-size: 11px;
+    font-weight: 400;
+    color: #888;
+    text-align: right;
+  }
+  .objet-fiche-back {
+    display: inline-block;
+    margin-bottom: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1565c0;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .objet-fiche-photo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+  .objet-fiche-photo img {
+    max-width: 100%;
+    max-height: 300px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 8px;
+    background: #f2f2f2;
+    display: block;
+  }
+  .objet-fiche-photo .no-photo {
+    width: 100%;
+    height: 220px;
+    border-radius: 8px;
+    background: #eee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 13px;
+    text-align: center;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+
   .health-modal { min-width: 380px; max-width: 480px; }
   .health-subtitle { font-size: 13px; color: #555; margin: -6px 0 16px 0; }
   .health-bars { display: flex; flex-direction: column; gap: 12px; }
@@ -2021,11 +2089,15 @@ window.showGuideModal = function () {
       '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à tous les ouvrages.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">🚧 Historique des travaux</td><td style="padding:6px;border:1px solid #ddd;">Affiche l\'historique des interventions réalisées sur l\'ouvrage (date, mécanique/usages, type d\'action, commentaire).</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">⚠️ Travaux à prévoir</td><td style="padding:6px;border:1px solid #ddd;">Note libre décrivant les travaux à planifier, avec une case "Travaux standard" ou "Travaux urgent". Si "urgent" est coché, le pin de l\'ouvrage clignote en rouge sur la carte.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">🗂️ Voir les objets</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la liste des objets liés à l\'ouvrage (nombre illimité). Cliquer sur un nom affiche sa fiche : photo, type, utilité/description.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📥 Télécharger la fiche PDF</td><td style="padding:6px;border:1px solid #ddd;">Génère la fiche synthétique complète de l\'ouvrage (informations, illustration, objets, synthèse des visites, historique des interventions), suivie de l\'ensemble des fiches de visite détaillées.</td></tr>' +
     '</table>' +
 
     '<h3>Menu déroulant des objets</h3>' +
     '<p>Lorsque des objets sont renseignés pour un ouvrage (ex : tablier, culées, buse…), un menu déroulant apparaît dans l\'encadré. En sélectionnant un objet, les boutons habituels laissent place à deux nouveaux boutons : <b>📄 Fiche de l\'objet</b> et <b>➕ Créer une fiche à l\'objet</b>. Un bouton ↩️ Retour permet de revenir aux boutons par défaut.</p>' +
+
+    '<h3>🗂️ Voir les objets (fiches détaillées, nombre illimité)</h3>' +
+    '<p>Distinct du menu déroulant ci-dessus, le bouton <b>🗂️ Voir les objets</b> ouvre une liste de noms d\'objets reliés à l\'ouvrage par son nom complet (comme pour les visites et les travaux), sans limite de nombre. Cliquer sur un nom ouvre sa fiche : photo, type (facultatif) et utilité/description. Un lien "← Retour à la liste des objets" permet de revenir en arrière.</p>' +
 
     '<h3>Fiches de visite &amp; export PDF</h3>' +
     '<p>Chaque fiche affiche : inspecteur(s), date de la visite, nom complet de l\'ouvrage, condition de visite, description (tiret si vide), état structurel, état de sécurité usager, désordre(s) mécanique, désordre(s) d\'usage, et jusqu\'à 5 photos avec leur description.</p>' +
@@ -2420,6 +2492,9 @@ window.__ficheStore = {};
 window.__travauxStore = {};
 // Stockage global des objets liés à chaque ouvrage (pour le menu déroulant)
 window.__objetsStore = {};
+// Stockage global des fiches d'objets détaillées (nom, photo, utilité), reliées par nom d'ouvrage
+// comme les visites/travaux, ce qui permet un nombre illimité d'objets par ouvrage
+window.__objetsDetailStore = {};
 // Stockage global des données complètes de chaque ouvrage (pour la fiche PDF complète)
 window.__ouvrageStore = {};
 // Registre des ouvrages affichées (utilisé par le panneau de recherche Domaine/Famille/Groupe)
@@ -2686,6 +2761,113 @@ function jsStringLiteral(str) {
 window.closePhotoModal = function () {
   const el = document.getElementById('photo-modal-overlay');
   if (el) el.remove();
+};
+
+// -------------------------------------------------------------------
+// Liste des objets liés à un ouvrage ("Voir les objets") + fiche détaillée par objet
+// -------------------------------------------------------------------
+// storeId pointe vers un tableau dans window.__objetsDetailStore : [{ nom, type, photo, utilite }, ...]
+// Nombre d'objets illimité (ils sont reliés à l'ouvrage par son nom, comme les visites/travaux).
+
+// Affiche la liste des noms d'objets (écran d'accueil de la modale)
+window.showObjetsListModal = function (storeId, ouvrageNom) {
+  window.closePhotoModal();
+
+  const objets = window.__objetsDetailStore[storeId] || [];
+
+  const overlay = document.createElement('div');
+  overlay.className = 'photo-modal-overlay';
+  overlay.id = 'photo-modal-overlay';
+  overlay.onclick = function (e) { if (e.target === overlay) window.closePhotoModal(); };
+  overlay.innerHTML =
+    '<div class="photo-modal fiche-modal">' +
+      '<button class="close-btn" onclick="window.closePhotoModal()">&times;</button>' +
+      '<h3>🗂️ Objets — ' + escapeHtml(ouvrageNom || '') + '</h3>' +
+      '<div id="objets-list-content-area"></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  window.__renderObjetsList(storeId, ouvrageNom);
+};
+
+// (Re)construit la liste cliquable des noms d'objets dans la zone de contenu de la modale déjà ouverte
+window.__renderObjetsList = function (storeId, ouvrageNom) {
+  const area = document.getElementById('objets-list-content-area');
+  if (!area) return;
+
+  const objets = window.__objetsDetailStore[storeId] || [];
+
+  if (objets.length === 0) {
+    area.innerHTML = '<p style="font-size:13px;color:#888;">Aucun objet n\'est renseigné pour cet ouvrage.</p>';
+    return;
+  }
+
+  area.innerHTML = '<div class="objet-list">' +
+    objets.map((o, i) =>
+      '<a class="objet-list-item" href="#" onclick="event.preventDefault(); window.__showObjetFiche(' +
+        jsStringLiteral(storeId) + ', ' + i + ', ' + jsStringLiteral(ouvrageNom) + ');">' +
+        '<span>' + escapeHtml(o.nom) + '</span>' +
+        (o.type ? '<span class="objet-list-type">' + escapeHtml(o.type) + '</span>' : '') +
+      '</a>'
+    ).join('') +
+  '</div>';
+};
+
+// Affiche la fiche détaillée d'un objet précis (photo, nom, type, utilité), avec un lien de retour vers la liste
+window.__showObjetFiche = async function (storeId, idx, ouvrageNom) {
+  const objets = window.__objetsDetailStore[storeId] || [];
+  const objet = objets[idx];
+
+  const overlay = document.getElementById('photo-modal-overlay');
+  if (!overlay || !objet) return;
+
+  const titleEl = overlay.querySelector('h3');
+  if (titleEl) titleEl.textContent = '🗂️ ' + objet.nom;
+
+  const area = document.getElementById('objets-list-content-area');
+  if (!area) return;
+
+  area.innerHTML =
+    '<a class="objet-fiche-back" href="#" onclick="event.preventDefault(); window.__renderObjetsList(' +
+      jsStringLiteral(storeId) + ', ' + jsStringLiteral(ouvrageNom) + '); ' +
+      'const t = document.querySelector(\'#photo-modal-overlay h3\'); if (t) t.textContent = ' +
+      jsStringLiteral('🗂️ Objets — ' + (ouvrageNom || '')) + ';">← Retour à la liste des objets</a>' +
+    '<div class="objet-fiche-photo"><p>Chargement de la photo…</p></div>' +
+    (objet.type ? '<div class="modal-row"><b>Type :</b> ' + escapeHtml(objet.type) + '</div>' : '') +
+    '<div class="modal-row"><b>Utilité / Description :</b> ' + escapeHtml(objet.utilite || '—') + '</div>';
+
+  let tokenInfo = null;
+  let tokenError = '';
+  try {
+    tokenInfo = await getFreshAccessToken();
+  } catch (e) {
+    console.error('Impossible de récupérer le jeton d\'accès Grist pour les pièces jointes :', e);
+    tokenError = 'Erreur d\'accès aux pièces jointes : ' + (e && e.message ? e.message : e);
+  }
+
+  const hasRawValue = Array.isArray(objet.photo) ? objet.photo.length > 0 : !!objet.photo;
+  const src = resolveImageValue(objet.photo, tokenInfo);
+  const attachmentId = extractAttachmentId(objet.photo);
+  let photoHtml;
+  if (src) {
+    const onerrorAttr = attachmentId !== null
+      ? "window.__retryAttachmentImg(this, " + attachmentId + ")"
+      : "console.error('Échec de chargement, URL :', this.src); this.replaceWith(Object.assign(document.createElement('div'), {className:'no-photo', textContent:'Image inaccessible (voir console)'}))";
+    photoHtml = '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(objet.nom) + '" referrerpolicy="no-referrer" onerror="' + onerrorAttr + '" />';
+  } else if (hasRawValue && tokenError) {
+    photoHtml = '<div class="no-photo">' + escapeHtml(tokenError) + '</div>';
+  } else if (hasRawValue) {
+    photoHtml = '<div class="no-photo">Format de pièce jointe non reconnu (voir console)</div>';
+  } else {
+    photoHtml = '<div class="no-photo">Aucune photo</div>';
+  }
+
+  // Le modal peut avoir été fermé, ou l'utilisateur peut être reparti à la liste, pendant le chargement
+  const stillOpen = document.getElementById('photo-modal-overlay');
+  if (stillOpen) {
+    const photoZone = stillOpen.querySelector('.objet-fiche-photo');
+    if (photoZone) photoZone.innerHTML = photoHtml;
+  }
 };
 
 // -------------------------------------------------------------------
@@ -4060,6 +4242,42 @@ async function drawRecords(records, mappings) {
     }
   });
 
+  // ------------------ Objets (fiches détaillées) : reliés par nom d'ouvrage, comme les travaux/visites ------------------
+  // Contrairement au groupe "Objet1..6" (limité à 6, avec liens externes), ce groupe permet un nombre
+  // illimité d'objets par ouvrage, chacun sur sa propre ligne, avec photo + utilité affichées dans une fiche interne.
+  const objetsDetailByGroupKey = new Map();
+  records.forEach((record, index) => {
+    try {
+      const mapped = grist.mapColumnNames(record) || record;
+
+      const objetNom = formatTextValue(mapped.NomObjet).trim();
+      const objetNomOuvrage = mapped.NomOuvrageObjet || '';
+
+      if (!objetNom) return; // ligne sans objet renseigné : on ignore
+
+      const normalizedName = objetNomOuvrage.toString().trim().toLowerCase();
+      if (!normalizedName) {
+        console.warn('Objet ligne ' + index + ' ignoré : le champ "Nom ouvrage" est vide, impossible de le relier.', record);
+        return;
+      }
+      const matchedKey = nameToGroupKey.get(normalizedName);
+      if (!matchedKey) {
+        console.warn('Objet ligne ' + index + ' ignoré : aucun ouvrage ne correspond au nom "' + objetNomOuvrage + '".', record);
+        return;
+      }
+
+      if (!objetsDetailByGroupKey.has(matchedKey)) objetsDetailByGroupKey.set(matchedKey, []);
+      objetsDetailByGroupKey.get(matchedKey).push({
+        nom: objetNom,
+        type: formatTextValue(mapped.TypeObjetDetail),
+        photo: mapped.PhotoObjet || '',
+        utilite: mapped.UtiliteObjet || ''
+      });
+    } catch (err) {
+      console.error('Erreur (collecte objet) ligne ' + index + ' :', err, record);
+    }
+  });
+
   structureGroups.forEach((entries, key) => {
     try {
       // Choisit l'entrée "principale" : la première du groupe qui a des coordonnées valides
@@ -4203,6 +4421,19 @@ async function drawRecords(records, mappings) {
           '</select>'
         : '';
 
+      // Fiches d'objets détaillées (nombre illimité, reliées par nom d'ouvrage) : nom + photo + utilité,
+      // consultables via le bouton "🗂️ Voir les objets"
+      const objetsDetail = objetsDetailByGroupKey.get(key) || [];
+      const objetsDetailId = 'objets-detail-' + Math.random().toString(36).slice(2);
+      window.__objetsDetailStore[objetsDetailId] = objetsDetail;
+      const warnObjetsId = 'warn-objets-' + Math.random().toString(36).slice(2);
+      const btnVoirObjets = objetsDetail.length > 0
+        ? '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showObjetsListModal(\'' + objetsDetailId + '\', ' + jsStringLiteral(nom) + ');">🗂️ Voir les objets</a>'
+        : '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warnObjetsId + '\').classList.add(\'visible\');">🗂️ Voir les objets</a>';
+      const warningBoxObjets = objetsDetail.length > 0
+        ? ''
+        : '<div class="warning-box" id="' + warnObjetsId + '">Aucun objet n\'est renseigné pour cet ouvrage.</div>';
+
       const etatHtml = gradeBadge(etat);
       const securiteHtml = gradeBadge(securite);
 
@@ -4244,10 +4475,12 @@ async function drawRecords(records, mappings) {
             '<a class="btn btn-form" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + grilleEvalGlobalId + '\', ' + jsStringLiteral('Grilles d\'évaluation') + ');">📋 Grilles d\'évaluation</a>' +
             '<a class="btn btn-travaux" href="#" onclick="event.preventDefault(); window.showTravauxModal(\'' + travauxId + '\', ' + jsStringLiteral(nom) + ');">🚧 Historique des travaux</a>' +
             '<a class="btn btn-travaux-prevoir" href="#" onclick="event.preventDefault(); window.showTravauxAPrevoirModal(' + jsStringLiteral(travauxPrevoirKey) + ', ' + jsStringLiteral(nom) + ');">⚠️ Travaux à prévoir</a>' +
+            btnVoirObjets +
             '<a class="btn btn-pdf-ouvrage" href="#" onclick="event.preventDefault(); window.exportOuvragePdf(\'' + ouvrageId + '\');">📥 Télécharger la fiche PDF</a>' +
           '</div>' +
           '<div class="buttons objet-buttons" id="btns-objet-' + objetUid + '" style="display:none;"></div>' +
           warningBox +
+          warningBoxObjets +
         '</div>';
 
       attachHoverCard(marker, cardHtml);
@@ -4399,6 +4632,18 @@ grist.ready({
     { name: 'Objet6Type', title: '🟨 Objet 6 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
     { name: 'Objet6LienFiche', title: '🟨 Objet 6 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet6LienCreer', title: '🟨 Objet 6 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
+
+    // ---- Groupe "Fiches d'objets détaillées" (relié par nom d'ouvrage, comme les visites/travaux) ----
+    // Contrairement au groupe "Objet 1-6" ci-dessus (limité à 6, avec liens externes vers une fiche),
+    // ce groupe permet un nombre ILLIMITÉ d'objets par ouvrage : une ligne = un objet, avec sa propre
+    // photo et sa description d'utilité, consultables directement dans le widget (bouton "🗂️ Voir les objets").
+    { name: 'NomOuvrageObjet', title: '🟦 Objet (fiche) — Nom complet ouvrage', type: 'Text', optional: true,
+      description: 'Doit correspondre au nom de l\'ouvrage (comme pour les fiches visite / travaux)' },
+    { name: 'NomObjet', title: '🟦 Objet (fiche) — Nom de l\'objet', type: 'Text', optional: true },
+    { name: 'TypeObjetDetail', title: '🟦 Objet (fiche) — Type', type: 'Text', optional: true },
+    { name: 'PhotoObjet', title: '🟦 Objet (fiche) — Photo', type: 'Text,Attachments', optional: true,
+      description: 'URL d\'une image OU colonne "Pièce jointe" Grist (upload direct)' },
+    { name: 'UtiliteObjet', title: '🟦 Objet (fiche) — Utilité / Description', type: 'Text', optional: true },
 
     // ---- Groupe "Travaux / Interventions" (relié par nom, comme les fiches visite) ----
     { name: 'NomOuvrageTravail', title: '🟧 Travaux — Nom complet ouvrage', type: 'Text', optional: true,
