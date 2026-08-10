@@ -2105,7 +2105,8 @@ window.showGuideModal = function () {
       '<tr><td style="padding:6px;border:1px solid #ddd;">📷 Photo(s) initial de l\'ouvrage</td><td style="padding:6px;border:1px solid #ddd;">Affiche jusqu\'à 4 photos de référence avec description.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à tous les ouvrages.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">🚧 Historique des travaux</td><td style="padding:6px;border:1px solid #ddd;">Affiche l\'historique des interventions réalisées sur l\'ouvrage (date, mécanique/usages, type d\'action, commentaire).</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">⚠️ Travaux à prévoir</td><td style="padding:6px;border:1px solid #ddd;">Note libre décrivant les travaux à planifier, avec une case "Travaux standard" ou "Travaux urgent". Si "urgent" est coché, le pin de l\'ouvrage clignote en rouge sur la carte.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">⚠️ Travaux à prévoir</td><td style="padding:6px;border:1px solid #ddd;">Note libre décrivant les travaux à planifier, avec une case "Travaux standard" ou "Travaux urgent" (à titre indicatif seulement, ne fait plus clignoter le pin).</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">🔴 Clignotement du pin</td><td style="padding:6px;border:1px solid #ddd;">Le pin de l\'ouvrage clignote en rouge si la case "Clignote en rouge" est cochée sur sa visite (fiche visite) la PLUS RÉCENTE.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">🗂️ Voir les objets</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la liste des objets liés à l\'ouvrage (nombre illimité). Cliquer sur un nom affiche sa fiche : photo, type, utilité/description.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📥 Télécharger la fiche PDF</td><td style="padding:6px;border:1px solid #ddd;">Génère la fiche synthétique complète de l\'ouvrage (informations, illustration, objets, synthèse des visites, historique des interventions), suivie de l\'ensemble des fiches de visite détaillées.</td></tr>' +
     '</table>' +
@@ -3193,7 +3194,7 @@ function calendarDateKey(year, monthIndex, day) { return year + '-' + pad2(month
 // -------------------------------------------------------------------
 // Helpers génériques : écriture directe dans des colonnes "Ouvrage" de la table Grist,
 // à partir de leur nom "friendly" défini dans mapColumns (voir grist.ready plus bas).
-// Réutilisés par le calendrier (DateVisitePlanifiee) et par "Travaux à prévoir" (ClignoteRouge).
+// Réutilisé par le calendrier (colonne "DateVisitePlanifiee").
 // -------------------------------------------------------------------
 function getMappedRawColId(friendlyName) {
   const mappings = window.__gristMappings || {};
@@ -3232,7 +3233,10 @@ async function syncOuvrageCalendarColumn(rowId) {
     });
   });
   dates.sort();
-  await updateOuvrageFields(rowId, { DateVisitePlanifiee: dates.join(', ') });
+  const ok = await updateOuvrageFields(rowId, { DateVisitePlanifiee: dates.join(', ') });
+  if (!ok) {
+    showCoordToast('⚠️ Date non enregistrée dans le tableau : vérifiez que "🟥 Ouvrage — Date(s) de visite planifiée" est bien mappée (⚙️) vers une colonne de type Texte.');
+  }
 }
 
 // Enregistre la planification courante dans les options du widget (persisté par Grist, partagé entre utilisateurs).
@@ -3281,8 +3285,10 @@ async function saveTravauxAPrevoir(showFeedback) {
   return ok;
 }
 
-// Fait clignoter en rouge (ou arrête de faire clignoter) le pin d'un ouvrage selon
-// que des travaux urgents sont prévus ou non pour lui.
+// Fait clignoter en rouge (ou arrête de faire clignoter) le pin d'un ouvrage. Le clignotement
+// est désormais déterminé UNIQUEMENT par la case "Clignote en rouge" de la visite la plus récente
+// de l'ouvrage (voir la boucle de rendu des marqueurs), donc recalculé automatiquement à chaque
+// rafraîchissement des données — aucune synchronisation manuelle n'est nécessaire ici.
 function setOuvrageBlink(marker, urgent) {
   if (!marker || typeof marker.getElement !== 'function') return;
   const el = marker.getElement();
@@ -3291,39 +3297,6 @@ function setOuvrageBlink(marker, urgent) {
     el.classList.add('ouvrage-marker-urgent');
   } else {
     el.classList.remove('ouvrage-marker-urgent');
-  }
-}
-
-// Applique l'état de clignotement à tous les ouvrages du registre correspondant à une clé donnée
-// (une clé = un nom d'ouvrage normalisé ; peut concerner plusieurs marqueurs si doublon de nom).
-function applyOuvrageBlink(travauxPrevoirKey) {
-  const entry = window.__travauxAPrevoir[travauxPrevoirKey];
-  const urgent = !!(entry && entry.urgent);
-  window.__structureRegistry.forEach(regEntry => {
-    if (regEntry.travauxPrevoirKey === travauxPrevoirKey) {
-      setOuvrageBlink(regEntry.marker, urgent);
-    }
-  });
-}
-
-// Réapplique le clignotement sur tout le registre (utilisé après chargement des options Grist,
-// puisque les marqueurs peuvent avoir été créés avant que les options n'arrivent).
-function applyAllOuvrageBlinks() {
-  window.__structureRegistry.forEach(regEntry => {
-    const entry = window.__travauxAPrevoir[regEntry.travauxPrevoirKey];
-    setOuvrageBlink(regEntry.marker, !!(entry && entry.urgent));
-  });
-}
-
-// Enregistre, dans la colonne de table "ClignoteRouge", si l'ouvrage (ou les ouvrages, en cas de
-// doublon de nom) correspondant à cette clé "Travaux à prévoir" doit clignoter en rouge ou non.
-async function syncOuvrageBlinkColumn(travauxPrevoirKey, urgent) {
-  const rowIds = window.__structureRegistry
-    .filter(regEntry => regEntry.travauxPrevoirKey === travauxPrevoirKey)
-    .map(regEntry => regEntry.rowId)
-    .filter(id => id != null);
-  for (const rowId of rowIds) {
-    await updateOuvrageFields(rowId, { ClignoteRouge: !!urgent });
   }
 }
 
@@ -3383,8 +3356,9 @@ window.showTravauxAPrevoirModal = function (travauxPrevoirKey, nom) {
     }
 
     const ok = await saveTravauxAPrevoir(false);
-    applyOuvrageBlink(travauxPrevoirKey);
-    await syncOuvrageBlinkColumn(travauxPrevoirKey, urgent);
+    // Remarque : cette case "urgent" ne pilote plus le clignotement du pin (voir la case
+    // "Clignote en rouge" sur la fiche de la visite la plus récente) ; elle sert uniquement
+    // de note de planification interne.
 
     saveBtn.disabled = false;
     saveBtn.textContent = '💾 Enregistrer';
@@ -4272,6 +4246,7 @@ async function drawRecords(records, mappings) {
       const ficheConditionVisite = mapped.ConditionVisiteFiche || '';
       const ficheDesordreMecanique = mapped.DesordreMecaniqueFiche || '';
       const ficheDesordreUsage = mapped.DesordreUsageFiche || '';
+      const ficheClignoteRouge = !!mapped.ClignoteRougeFiche;
       const fichePhotos = [
         { url: mapped.PhotoFiche1 || '', desc: mapped.DescriptionPhotoFiche1 || '' },
         { url: mapped.PhotoFiche2 || '', desc: mapped.DescriptionPhotoFiche2 || '' },
@@ -4282,7 +4257,7 @@ async function drawRecords(records, mappings) {
       const fichePhotoPresente = fichePhotos.some(p => Array.isArray(p.url) ? p.url.length > 0 : !!p.url);
       const ficheExiste = !!(ficheInspecteurs || ficheDate || ficheNomComplet || ficheDescription ||
         ficheConditionVisite || ficheDesordreMecanique ||
-        ficheDesordreUsage || fichePhotoPresente);
+        ficheDesordreUsage || ficheClignoteRouge || fichePhotoPresente);
       if (!ficheExiste) return; // cette ligne ne contient aucune donnée de visite
 
       const normalizedName = ficheNomComplet.toString().trim().toLowerCase();
@@ -4308,6 +4283,7 @@ async function drawRecords(records, mappings) {
           conditionVisite: ficheConditionVisite,
           desordreMecanique: ficheDesordreMecanique,
           desordreUsage: ficheDesordreUsage,
+          clignoteRouge: ficheClignoteRouge,
           photos: fichePhotos
         }
       });
@@ -4434,12 +4410,26 @@ async function drawRecords(records, mappings) {
       });
       const registryEntry = window.__structureRegistry[window.__structureRegistry.length - 1];
 
+      // Visites reliées à cet ouvrage par nom (collectées indépendamment de la position de ligne),
+      // triées de la plus récente à la plus ancienne (calculées ICI, avant la création du marqueur,
+      // car le clignotement du pin dépend désormais de la case cochée sur la visite la plus récente).
+      const visits = visitsByGroupKey.get(key) || [];
+      visits.sort((a, b) => {
+        if (a.parsedDate && b.parsedDate) return b.parsedDate - a.parsedDate;
+        if (a.parsedDate) return -1;
+        if (b.parsedDate) return 1;
+        return 0;
+      });
+      // Le pin clignote en rouge si la visite la plus récente a la case "Clignote en rouge" cochée.
+      // Lu directement depuis les données de la table à chaque rafraîchissement : aucune écriture
+      // séparée n'est nécessaire, donc pas de risque de désynchronisation.
+      const clignoteRouge = visits.length > 0 && !!visits[0].data.clignoteRouge;
+
       const marker = L.marker([lat, lng], {
         icon: createStructureIcon(imageSrc, color, imageAttachmentId)
       }).addTo(structureLayerGroup);
       registryEntry.marker = marker;
-      // Si des travaux urgents sont déjà prévus pour cet ouvrage (chargés depuis les options Grist), fait clignoter le pin
-      setOuvrageBlink(marker, !!(window.__travauxAPrevoir[travauxPrevoirKey] && window.__travauxAPrevoir[travauxPrevoirKey].urgent));
+      setOuvrageBlink(marker, clignoteRouge);
 
       const domaineAuto = findDomaineForPoint(lat, lng, domainePolygonsGlobal);
       const domaineGeo = domaineAuto || mapped.DomaineStructure || '—';
@@ -4448,16 +4438,6 @@ async function drawRecords(records, mappings) {
       const classifGroupe = formatTextValue(mapped.GroupeStructure) || '—';
       const lienFiche = mapped.LienFicheStructure || '';
       const lienFormulaire = mapped.LienFormulaireStructure || '';
-      // Visites reliées à cet ouvrage par nom (collectées indépendamment de la position de ligne)
-      const visits = visitsByGroupKey.get(key) || [];
-
-      // Trie les visites de la plus récente à la plus ancienne (les dates non reconnues passent en dernier)
-      visits.sort((a, b) => {
-        if (a.parsedDate && b.parsedDate) return b.parsedDate - a.parsedDate;
-        if (a.parsedDate) return -1;
-        if (b.parsedDate) return 1;
-        return 0;
-      });
 
       // Bouton "Voir la/les fiche(s)" : libellé au singulier ou pluriel selon le nombre de visites
       const warningId = 'warn-' + Math.random().toString(36).slice(2);
@@ -4677,6 +4657,8 @@ grist.ready({
       description: 'Ex : météo, accès, conditions particulières lors de la visite' },
     { name: 'DesordreMecaniqueFiche', title: '🟥 Fiche visite — Désordre(s) mécanique', type: 'Text', optional: true },
     { name: 'DesordreUsageFiche', title: '🟥 Fiche visite — Désordre(s) d\'usage', type: 'Text', optional: true },
+    { name: 'ClignoteRougeFiche', title: '🟥 Fiche visite — Clignote en rouge (travaux urgents)', type: 'Bool,Text,Any', optional: true,
+      description: 'Case à cocher. Le pin de l\'ouvrage clignote en rouge si cette case est cochée sur sa visite la PLUS RÉCENTE.' },
     { name: 'PhotoFiche1', title: '🟥 Fiche visite — Photo 1', type: 'Text,Attachments', optional: true },
     { name: 'DescriptionPhotoFiche1', title: '🟥 Fiche visite — Description photo 1', type: 'Text', optional: true },
     { name: 'PhotoFiche2', title: '🟥 Fiche visite — Photo 2', type: 'Text,Attachments', optional: true },
@@ -4715,10 +4697,8 @@ grist.ready({
       description: 'Texte descriptif de l\'ouvrage (affiché dans la fiche PDF, section "Information sur l\'ouvrage")' },
     { name: 'CodeIdentificationOuvrage', title: '🟥 Ouvrage — Code d\'identification', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'IndiceStrategiqueOuvrage', title: '🟥 Ouvrage — Indice stratégique', type: 'Text,Numeric,Int,Any', optional: true },
-    { name: 'DateVisitePlanifiee', title: '🟥 Ouvrage — Date(s) de visite planifiée (calendrier)', type: 'Text,Date,DateTime,Any', optional: true,
-      description: 'Enregistrée automatiquement à chaque ajout/suppression dans le calendrier des visites prévues.' },
-    { name: 'ClignoteRouge', title: '🟥 Ouvrage — Clignote en rouge (travaux urgents)', type: 'Bool,Text,Any', optional: true,
-      description: 'Enregistrée automatiquement selon la case "Travaux urgent" cochée dans "Travaux à prévoir".' },
+    { name: 'DateVisitePlanifiee', title: '🟥 Ouvrage — Date(s) de visite planifiée (calendrier)', type: 'Text', optional: true,
+      description: 'Enregistrée automatiquement à chaque ajout/suppression dans le calendrier des visites prévues. À mapper vers une colonne de type Texte (pas Date), car plusieurs dates peuvent y être listées.' },
 
     // ---- Groupe "Objets liés à l'ouvrage" (jusqu'à 6, pour le menu déroulant de l'encadré) ----
     // Chaque objet porte sa propre "note générale" (1 à 4, même échelle que GRADE_COLORS : 1=urgent … 4=très bon état).
@@ -4896,8 +4876,9 @@ try {
     }
     if (document.getElementById('calendar-modal-overlay')) renderCalendarMonth();
 
-    // Travaux à prévoir : même mécanisme (options du widget Grist), utilisé pour faire
-    // clignoter en rouge le pin des ouvrages ayant des travaux urgents prévus.
+    // Travaux à prévoir : note de planification interne (texte + standard/urgent), enregistrée dans
+    // les options du widget Grist. Ne pilote plus le clignotement des pins (voir la case "Clignote
+    // en rouge" sur la fiche de la visite la plus récente, lue directement depuis la table).
     if (options && options.travauxAPrevoir && Object.keys(options.travauxAPrevoir).length > 0) {
       window.__travauxAPrevoir = options.travauxAPrevoir;
     } else {
@@ -4908,7 +4889,6 @@ try {
         window.__travauxAPrevoir = {};
       }
     }
-    applyAllOuvrageBlinks();
   });
 } catch (err) {
   console.error('grist.onOptions indisponible : la planification du calendrier ne pourra pas être sauvegardée.', err);
