@@ -2520,9 +2520,17 @@ window.__structureRegistry = [];
 // Planification des visites du calendrier : { 'AAAA-MM-JJ': [ { rowId, nom }, ... ] }
 // Stockée dans les options du widget Grist (grist.setOption / grist.onOptions), PAS dans une colonne de table.
 window.__visitPlanning = {};
+// Compteur d'écritures "visitPlanning" en cours (grist.setOption en vol). Tant qu'il est > 0,
+// on ignore les échos reçus via grist.onOptions pour cette clé : sans cette garde, l'écho d'un
+// premier ajout (encore "en retard") pouvait écraser un second ajout fait juste après mais avant
+// que le premier n'ait fini de répondre, faisant "disparaître" des visites qui venaient d'être
+// enregistrées (voir saveVisitPlanning et le handler grist.onOptions plus bas).
+window.__visitPlanningPendingWrites = 0;
 // Travaux à prévoir (planification future, distincte de l'historique) : { 'nom ouvrage normalisé': { texte, standard, urgent } }
 // Stockée elle aussi dans les options du widget Grist (grist.setOption / grist.onOptions).
 window.__travauxAPrevoir = {};
+// Même garde anti-course que window.__visitPlanningPendingWrites, pour la clé "travauxAPrevoir".
+window.__travauxAPrevoirPendingWrites = 0;
 
 // Résout une liste de photos (URL ou pièce jointe Grist) et retourne le HTML des emplacements
 async function resolvePhotoSlotsHtml(photos) {
@@ -3239,25 +3247,78 @@ async function syncOuvrageCalendarColumn(rowId) {
   }
 }
 
+// -------------------------------------------------------------------
+// Identifiant séquentiel d'ouvrage (1, 2, 3…, dans l'ordre d'ajout de l'ouvrage).
+// Écrit dans la colonne "🟥 Ouvrage — Code d'identification" (CodeIdentificationOuvrage) dès
+// qu'un ouvrage n'en a pas encore un. Un ouvrage qui a déjà un identifiant n'est JAMAIS
+// renuméroté (même si un ouvrage plus ancien est supprimé) : le prochain identifiant libre
+// repart toujours de (le plus grand identifiant déjà attribué) + 1.
+// -------------------------------------------------------------------
+
+// Empêche deux attributions de partir en même temps (ex. plusieurs rafraîchissements de
+// records coup sur coup, avant que l'écriture précédente n'ait été prise en compte par Grist
+// et redescendue via grist.onRecords).
+window.__assigningOuvrageIds = false;
+
+// ouvragesSansId : tableau de { rowId } pour les ouvrages sans identifiant. maxOuvrageId : le
+// plus grand identifiant numérique déjà attribué parmi tous les ouvrages actuellement chargés.
+async function assignMissingOuvrageIds(ouvragesSansId, maxOuvrageId) {
+  if (!ouvragesSansId || ouvragesSansId.length === 0) return;
+  if (window.__assigningOuvrageIds) return; // une attribution est déjà en cours : elle sera reprise au prochain passage si besoin
+  const colId = getMappedRawColId('CodeIdentificationOuvrage');
+  if (!colId) return; // colonne non mappée (⚙️ panneau de configuration) : rien à écrire
+
+  window.__assigningOuvrageIds = true;
+  try {
+    // Ordre d'ajout approximé par le rowId Grist croissant (une nouvelle ligne reçoit toujours
+    // un rowId plus grand que les lignes existantes).
+    const sorted = ouvragesSansId.slice().sort(function (a, b) { return a.rowId - b.rowId; });
+    let nextId = maxOuvrageId + 1;
+    const updates = sorted.map(function (o) {
+      const fields = {};
+      fields[colId] = nextId;
+      nextId++;
+      return { id: o.rowId, fields: fields };
+    });
+    await grist.selectedTable.update(updates);
+  } catch (err) {
+    console.error('Impossible d\'attribuer automatiquement les identifiants d\'ouvrage :', err, ouvragesSansId);
+  } finally {
+    window.__assigningOuvrageIds = false;
+  }
+}
+
 // Enregistre la planification courante dans les options du widget (persisté par Grist, partagé entre utilisateurs).
 // Asynchrone et avec confirmation visuelle, car grist.setOption() est un appel réseau : sans l'attendre,
 // un échec (ex. droits d'accès, connexion) passait inaperçu et la planification semblait "disparaître" au rafraîchissement.
 async function saveVisitPlanning(showFeedback) {
-  let ok = false;
-  try {
-    await grist.setOption('visitPlanning', window.__visitPlanning);
-    ok = true;
-  } catch (err) {
-    console.error('Impossible d\'enregistrer la planification des visites dans les options du widget Grist :', err);
-  }
-  try {
-    localStorage.setItem('cerema-visit-planning-backup', JSON.stringify(window.__visitPlanning));
-  } catch (err) { /* pas grave, sauvegarde locale seulement en secours */ }
+  // On enchaîne les écritures à la suite les unes des autres (au lieu de les laisser partir en
+  // parallèle) : si l'utilisateur ajoute plusieurs visites très vite, chaque grist.setOption()
+  // part avec l'état le plus à jour de window.__visitPlanning au moment où c'est son tour, au
+  // lieu de risquer d'écraser un ajout plus récent avec une version périmée.
+  const previousChain = window.__visitPlanningWriteChain || Promise.resolve();
+  const thisWrite = previousChain.then(async function () {
+    window.__visitPlanningPendingWrites++;
+    let ok = false;
+    try {
+      await grist.setOption('visitPlanning', window.__visitPlanning);
+      ok = true;
+    } catch (err) {
+      console.error('Impossible d\'enregistrer la planification des visites dans les options du widget Grist :', err);
+    } finally {
+      window.__visitPlanningPendingWrites = Math.max(0, window.__visitPlanningPendingWrites - 1);
+    }
+    try {
+      localStorage.setItem('cerema-visit-planning-backup', JSON.stringify(window.__visitPlanning));
+    } catch (err) { /* pas grave, sauvegarde locale seulement en secours */ }
 
-  if (showFeedback) {
-    showCoordToast(ok ? '💾 Planification enregistrée' : '⚠️ Échec de l\'enregistrement, réessayez');
-  }
-  return ok;
+    if (showFeedback) {
+      showCoordToast(ok ? '💾 Planification enregistrée' : '⚠️ Échec de l\'enregistrement, réessayez');
+    }
+    return ok;
+  });
+  window.__visitPlanningWriteChain = thisWrite.catch(function () {});
+  return thisWrite;
 }
 
 // -------------------------------------------------------------------
@@ -3268,21 +3329,31 @@ async function saveVisitPlanning(showFeedback) {
 
 // Enregistre window.__travauxAPrevoir dans les options du widget (+ sauvegarde locale de secours).
 async function saveTravauxAPrevoir(showFeedback) {
-  let ok = false;
-  try {
-    await grist.setOption('travauxAPrevoir', window.__travauxAPrevoir);
-    ok = true;
-  } catch (err) {
-    console.error('Impossible d\'enregistrer les travaux à prévoir dans les options du widget Grist :', err);
-  }
-  try {
-    localStorage.setItem('cerema-travaux-a-prevoir-backup', JSON.stringify(window.__travauxAPrevoir));
-  } catch (err) { /* pas grave, sauvegarde locale seulement en secours */ }
+  // Même principe que saveVisitPlanning : on enchaîne les écritures pour éviter qu'un ajout
+  // parte avec un état périmé de window.__travauxAPrevoir si un autre ajout vient d'être fait.
+  const previousChain = window.__travauxAPrevoirWriteChain || Promise.resolve();
+  const thisWrite = previousChain.then(async function () {
+    window.__travauxAPrevoirPendingWrites++;
+    let ok = false;
+    try {
+      await grist.setOption('travauxAPrevoir', window.__travauxAPrevoir);
+      ok = true;
+    } catch (err) {
+      console.error('Impossible d\'enregistrer les travaux à prévoir dans les options du widget Grist :', err);
+    } finally {
+      window.__travauxAPrevoirPendingWrites = Math.max(0, window.__travauxAPrevoirPendingWrites - 1);
+    }
+    try {
+      localStorage.setItem('cerema-travaux-a-prevoir-backup', JSON.stringify(window.__travauxAPrevoir));
+    } catch (err) { /* pas grave, sauvegarde locale seulement en secours */ }
 
-  if (showFeedback) {
-    showCoordToast(ok ? '💾 Travaux à prévoir enregistrés' : '⚠️ Échec de l\'enregistrement, réessayez');
-  }
-  return ok;
+    if (showFeedback) {
+      showCoordToast(ok ? '💾 Travaux à prévoir enregistrés' : '⚠️ Échec de l\'enregistrement, réessayez');
+    }
+    return ok;
+  });
+  window.__travauxAPrevoirWriteChain = thisWrite.catch(function () {});
+  return thisWrite;
 }
 
 // Fait clignoter en rouge (ou arrête de faire clignoter) le pin d'un ouvrage. Le clignotement
@@ -4367,6 +4438,12 @@ async function drawRecords(records, mappings) {
     }
   });
 
+  // Collecte, pendant la boucle ci-dessous, les ouvrages qui n'ont pas encore d'identifiant
+  // séquentiel (CodeIdentificationOuvrage) ainsi que le plus grand identifiant déjà attribué,
+  // pour pouvoir attribuer les identifiants manquants juste après (voir assignMissingOuvrageIds).
+  const ouvragesSansId = [];
+  let maxOuvrageId = 0;
+
   structureGroups.forEach((entries, key) => {
     try {
       // Choisit l'entrée "principale" : la première du groupe qui a des coordonnées valides
@@ -4385,6 +4462,16 @@ async function drawRecords(records, mappings) {
       const rowId = primary.rowId;
       const lat = primary.lat;
       const lng = primary.lng;
+
+      // Identifiant séquentiel de l'ouvrage : on note son état ici (déjà attribué ou non) pour
+      // le traitement fait juste après la boucle.
+      const codeIdBrut = formatTextValue(mapped.CodeIdentificationOuvrage).trim();
+      if (codeIdBrut) {
+        const codeIdNum = parseInt(codeIdBrut, 10);
+        if (Number.isFinite(codeIdNum) && codeIdNum > maxOuvrageId) maxOuvrageId = codeIdNum;
+      } else if (rowId != null) {
+        ouvragesSansId.push({ rowId: rowId });
+      }
 
       const color = mapped.CouleurStructure || null; // null -> rouge par défaut dans createStructureIcon
       const nom = mapped.NomStructure || 'Ouvrage';
@@ -4585,6 +4672,11 @@ async function drawRecords(records, mappings) {
   if (bounds.length > 0) {
     map.fitBounds(bounds, { padding: [20, 20] });
   }
+
+  // Attribue un identifiant séquentiel aux ouvrages qui n'en ont pas encore (voir
+  // assignMissingOuvrageIds). Ne bloque pas l'affichage : se fait en arrière-plan, et
+  // grist.onRecords redessinera automatiquement la carte une fois l'écriture prise en compte.
+  assignMissingOuvrageIds(ouvragesSansId, maxOuvrageId);
 
   buildSearchPanel();
 
@@ -4863,7 +4955,14 @@ window.__saveTravauxRecord = async function (nomOuvrage, values) {
 // et se met à jour automatiquement si elle est modifiée ailleurs (autre utilisateur, autre session).
 try {
   grist.onOptions(function (options) {
-    if (options && options.visitPlanning && Object.keys(options.visitPlanning).length > 0) {
+    // Si une écriture "visitPlanning" est encore en vol (voir saveVisitPlanning), l'écho qu'on
+    // reçoit ici peut correspondre à un état déjà dépassé par un ajout/suppression local plus
+    // récent : on l'ignore pour ne pas faire "disparaître" une visite qui vient d'être enregistrée.
+    // La prochaine écriture (celle qui est en vol) redéclenchera de toute façon cet écho avec
+    // l'état final correct une fois terminée.
+    if (window.__visitPlanningPendingWrites > 0) {
+      // rien à faire : on garde l'état local tel quel en attendant la fin de l'écriture en cours
+    } else if (options && options.visitPlanning && Object.keys(options.visitPlanning).length > 0) {
       window.__visitPlanning = options.visitPlanning;
     } else {
       // Rien d'enregistré côté Grist : on tente de récupérer une éventuelle sauvegarde de secours locale
@@ -4879,7 +4978,10 @@ try {
     // Travaux à prévoir : note de planification interne (texte + standard/urgent), enregistrée dans
     // les options du widget Grist. Ne pilote plus le clignotement des pins (voir la case "Clignote
     // en rouge" sur la fiche de la visite la plus récente, lue directement depuis la table).
-    if (options && options.travauxAPrevoir && Object.keys(options.travauxAPrevoir).length > 0) {
+    // Même garde anti-course que pour visitPlanning ci-dessus.
+    if (window.__travauxAPrevoirPendingWrites > 0) {
+      // rien à faire : écriture "travauxAPrevoir" encore en vol
+    } else if (options && options.travauxAPrevoir && Object.keys(options.travauxAPrevoir).length > 0) {
       window.__travauxAPrevoir = options.travauxAPrevoir;
     } else {
       try {
