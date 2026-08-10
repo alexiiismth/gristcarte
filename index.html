@@ -1660,6 +1660,23 @@ function gradeBadge(value) {
 }
 
 // -------------------------------------------------------------------
+// Note générale de l'ouvrage = calculée automatiquement, PAS saisie directement.
+// Règle : on prend la note la plus basse (la plus mauvaise) parmi les notes générales
+// (1 à 4) renseignées sur les objets liés à l'ouvrage (groupe "Objet 1 à 6").
+// Si aucun objet n'a de note renseignée, la note de l'ouvrage reste indéterminée ('—').
+// -------------------------------------------------------------------
+function computeOuvrageNoteGenerale(objetsListe) {
+  let min = null;
+  (objetsListe || []).forEach(o => {
+    const num = parseInt((o.note || '').toString().trim(), 10);
+    if (Number.isFinite(num) && num >= 1 && num <= 4) {
+      if (min === null || num < min) min = num;
+    }
+  });
+  return min === null ? '' : String(min);
+}
+
+// -------------------------------------------------------------------
 // Tableau de bord "Santé du patrimoine"
 // -------------------------------------------------------------------
 
@@ -1721,7 +1738,7 @@ window.showHealthModal = function () {
         healthBarHtml('Bon état (3)', stats.travaux, stats.totalConnu, '#66bb6a') +
         healthBarHtml('Très bon état (4)', stats.urgent, stats.totalConnu, '#1b5e20') +
       '</div>' +
-      '<p class="health-note">Pourcentages calculés sur les ' + stats.totalConnu + ' ouvrage(s) ayant un état structurel renseigné (dernière visite). ' +
+      '<p class="health-note">Pourcentages calculés sur les ' + stats.totalConnu + ' ouvrage(s) ayant une note générale calculée (note la plus basse parmi leurs objets). ' +
       '1 : intervention urgente — 2 : travaux nécessaires — 3 : bon état — 4 : très bon état.</p>' +
     '</div>';
   document.body.appendChild(overlay);
@@ -2619,8 +2636,6 @@ window.__ficheRenderTab = async function (storeId, idx) {
     '<div class="modal-row"><b>Nom complet ouvrage :</b> ' + escapeHtml(visit.data.nomComplet || '—') + '</div>' +
     '<div class="modal-row"><b>Condition de visite :</b> ' + escapeHtml(visit.data.conditionVisite || '—') + '</div>' +
     '<div class="modal-row"><b>Description :</b> ' + escapeHtml(visit.data.description || '—') + '</div>' +
-    '<div class="modal-row"><b>État structurel :</b> ' + escapeHtml(visit.data.etatStructurel || '—') + '</div>' +
-    '<div class="modal-row"><b>État sécurité usager :</b> ' + escapeHtml(visit.data.etatSecurite || '—') + '</div>' +
     '<div class="modal-row"><b>Désordre(s) mécanique :</b> ' + escapeHtml(visit.data.desordreMecanique || '—') + '</div>' +
     '<div class="modal-row"><b>Désordre(s) d\'usage :</b> ' + escapeHtml(visit.data.desordreUsage || '—') + '</div>';
 
@@ -2664,10 +2679,6 @@ async function buildVisitPdfHtml(visit, headingLevel) {
       '<tr>' +
         '<th>Inspecteur(s)</th><td>' + escapeHtml(visit.data.inspecteurs || '—') + '</td>' +
         '<th>Date de la visite</th><td>' + escapeHtml(visit.data.date || '—') + '</td>' +
-      '</tr>' +
-      '<tr>' +
-        '<th>État structurel</th><td>' + escapeHtml(visit.data.etatStructurel || '—') + '</td>' +
-        '<th>État sécurité usager</th><td>' + escapeHtml(visit.data.etatSecurite || '—') + '</td>' +
       '</tr>' +
       '<tr>' +
         '<th>Condition de visite</th><td colspan="3">' + escapeHtml(visit.data.conditionVisite || '—') + '</td>' +
@@ -3093,10 +3104,11 @@ window.exportOuvragePdf = async function (ouvrageId) {
       '<td>' + (i + 1) + '</td>' +
       '<td>' + escapeHtml(o.nom || '—') + '</td>' +
       '<td>' + escapeHtml(o.type || '—') + '</td>' +
+      '<td>' + gradeBadge(o.note || '—') + '</td>' +
     '</tr>'
   ).join('');
   const objetsTable = (data.objets || []).length > 0
-    ? '<table class="pdf-table"><thead><tr><th>N°</th><th>Libellé de l\'objet</th><th>Type de structure ou élément d\'usages</th></tr></thead><tbody>' + objetsRows + '</tbody></table>'
+    ? '<table class="pdf-table"><thead><tr><th>N°</th><th>Libellé de l\'objet</th><th>Type de structure ou élément d\'usages</th><th>Note générale</th></tr></thead><tbody>' + objetsRows + '</tbody></table>'
     : '<p class="pdf-no-photo">Aucun objet renseigné.</p>';
 
   const travauxRows = (data.travaux || []).map(t =>
@@ -3114,14 +3126,12 @@ window.exportOuvragePdf = async function (ouvrageId) {
   const visitsSummaryRows = (data.visits || []).map(v =>
     '<tr>' +
       '<td>' + escapeHtml(v.data.date || '—') + '</td>' +
-      '<td>' + gradeBadge(v.data.etatStructurel || '—') + '</td>' +
-      '<td>' + gradeBadge(v.data.etatSecurite || '—') + '</td>' +
       '<td>' + escapeHtml(v.data.conditionVisite || '—') + '</td>' +
       '<td>' + escapeHtml(v.data.description || '—') + '</td>' +
     '</tr>'
   ).join('');
   const visitsSummaryTable = (data.visits || []).length > 0
-    ? '<table class="pdf-table"><thead><tr><th>Date</th><th>État structurel</th><th>État sécurité usager</th><th>Condition de visite</th><th>Conclusions de la visite</th></tr></thead><tbody>' + visitsSummaryRows + '</tbody></table>'
+    ? '<table class="pdf-table"><thead><tr><th>Date</th><th>Condition de visite</th><th>Conclusions de la visite</th></tr></thead><tbody>' + visitsSummaryRows + '</tbody></table>'
     : '<p class="pdf-no-photo">Aucune visite enregistrée.</p>';
 
   // Détail complet de chaque fiche de visite, imprimée intégralement à la suite de la fiche ouvrage
@@ -3148,6 +3158,10 @@ window.exportOuvragePdf = async function (ouvrageId) {
         '<th>Groupe</th><td>' + escapeHtml(data.classifGroupe || '—') + '</td>' +
         '<th>Famille</th><td>' + escapeHtml(data.classifFamille || '—') + '</td>' +
       '</tr>' +
+      '<tr>' +
+        '<th>Note générale de l\'ouvrage</th><td>' + gradeBadge(data.noteGenerale || '—') + '</td>' +
+        '<th></th><td></td>' +
+      '</tr>' +
     '</table>' +
     '<div class="pdf-section"><h3>Information sur l\'ouvrage</h3><p>' + escapeHtml(data.description || '—') + '</p></div>' +
     '<div class="pdf-section"><h3>Illustration de l\'ouvrage</h3><div class="pdf-photo-grid">' + photosHtml + '</div></div>' +
@@ -3164,15 +3178,62 @@ window.exportOuvragePdf = async function (ouvrageId) {
 // -------------------------------------------------------------------
 // Calendrier des visites prévues
 // -------------------------------------------------------------------
-// La planification (quel ouvrage est prévue quel jour) N'EST PAS stockée dans une colonne
-// de la table Grist : elle est enregistrée dans les OPTIONS du widget lui-même (grist.setOption /
-// grist.onOptions), ce qui persiste dans le document Grist sans jamais toucher au schéma de la table.
+// La planification (quel ouvrage est prévue quel jour) reste enregistrée dans les OPTIONS du
+// widget (grist.setOption / grist.onOptions), qui restent la source de vérité partagée entre
+// utilisateurs. EN PLUS, à chaque modification, la ou les dates planifiées pour l'ouvrage concerné
+// sont recopiées dans la colonne de table "DateVisitePlanifiee" (voir syncOuvrageCalendarColumn),
+// afin que cette information soit aussi consultable/exploitable directement dans le tableau Grist.
 
 const CALENDAR_WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const CALENDAR_MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 function calendarDateKey(year, monthIndex, day) { return year + '-' + pad2(monthIndex + 1) + '-' + pad2(day); }
+
+// -------------------------------------------------------------------
+// Helpers génériques : écriture directe dans des colonnes "Ouvrage" de la table Grist,
+// à partir de leur nom "friendly" défini dans mapColumns (voir grist.ready plus bas).
+// Réutilisés par le calendrier (DateVisitePlanifiee) et par "Travaux à prévoir" (ClignoteRouge).
+// -------------------------------------------------------------------
+function getMappedRawColId(friendlyName) {
+  const mappings = window.__gristMappings || {};
+  const raw = mappings[friendlyName];
+  if (!raw) return null;
+  // Si la colonne autorise une sélection multiple, Grist renvoie un tableau : on prend le premier id.
+  return Array.isArray(raw) ? (raw.length > 0 ? raw[0] : null) : raw;
+}
+
+async function updateOuvrageFields(rowId, friendlyValues) {
+  if (rowId == null) return false;
+  const fields = {};
+  Object.keys(friendlyValues).forEach(function (friendlyName) {
+    const colId = getMappedRawColId(friendlyName);
+    if (colId) fields[colId] = friendlyValues[friendlyName];
+  });
+  if (Object.keys(fields).length === 0) return false; // colonnes non mappées : rien à écrire
+  try {
+    await grist.selectedTable.update({ id: rowId, fields: fields });
+    return true;
+  } catch (err) {
+    console.error('Impossible de mettre à jour la ligne ouvrage n°' + rowId + ' :', err, fields);
+    return false;
+  }
+}
+
+// Recalcule, à partir de window.__visitPlanning, la liste des dates auxquelles cet ouvrage
+// (identifié par son rowId de ligne Grist principale) est planifié, et l'enregistre dans la
+// colonne de table "DateVisitePlanifiee" (dates séparées par ", ", ou vide si aucune planifiée).
+async function syncOuvrageCalendarColumn(rowId) {
+  if (rowId == null) return;
+  const dates = [];
+  Object.keys(window.__visitPlanning).forEach(function (dateKey) {
+    (window.__visitPlanning[dateKey] || []).forEach(function (entry) {
+      if (entry.rowId === rowId) dates.push(dateKey);
+    });
+  });
+  dates.sort();
+  await updateOuvrageFields(rowId, { DateVisitePlanifiee: dates.join(', ') });
+}
 
 // Enregistre la planification courante dans les options du widget (persisté par Grist, partagé entre utilisateurs).
 // Asynchrone et avec confirmation visuelle, car grist.setOption() est un appel réseau : sans l'attendre,
@@ -3254,6 +3315,18 @@ function applyAllOuvrageBlinks() {
   });
 }
 
+// Enregistre, dans la colonne de table "ClignoteRouge", si l'ouvrage (ou les ouvrages, en cas de
+// doublon de nom) correspondant à cette clé "Travaux à prévoir" doit clignoter en rouge ou non.
+async function syncOuvrageBlinkColumn(travauxPrevoirKey, urgent) {
+  const rowIds = window.__structureRegistry
+    .filter(regEntry => regEntry.travauxPrevoirKey === travauxPrevoirKey)
+    .map(regEntry => regEntry.rowId)
+    .filter(id => id != null);
+  for (const rowId of rowIds) {
+    await updateOuvrageFields(rowId, { ClignoteRouge: !!urgent });
+  }
+}
+
 // Modale "Travaux à prévoir" : une note de planification (texte libre + type standard/urgent)
 window.showTravauxAPrevoirModal = function (travauxPrevoirKey, nom) {
   window.closePhotoModal();
@@ -3311,6 +3384,7 @@ window.showTravauxAPrevoirModal = function (travauxPrevoirKey, nom) {
 
     const ok = await saveTravauxAPrevoir(false);
     applyOuvrageBlink(travauxPrevoirKey);
+    await syncOuvrageBlinkColumn(travauxPrevoirKey, urgent);
 
     saveBtn.disabled = false;
     saveBtn.textContent = '💾 Enregistrer';
@@ -3591,6 +3665,7 @@ window.__confirmAddVisit = function () {
   if (!window.__visitPlanning[dateKey]) window.__visitPlanning[dateKey] = [];
   window.__visitPlanning[dateKey].push(entry);
   saveVisitPlanning(true);
+  if (entry.rowId != null) syncOuvrageCalendarColumn(entry.rowId);
 
   window.closeCalendarAddDialog();
   renderCalendarMonth();
@@ -3598,9 +3673,11 @@ window.__confirmAddVisit = function () {
 
 window.__removeVisit = function (dateKey, idx) {
   if (!window.__visitPlanning[dateKey]) return;
+  const removedEntry = window.__visitPlanning[dateKey][idx];
   window.__visitPlanning[dateKey].splice(idx, 1);
   if (window.__visitPlanning[dateKey].length === 0) delete window.__visitPlanning[dateKey];
   saveVisitPlanning(true);
+  if (removedEntry && removedEntry.rowId != null) syncOuvrageCalendarColumn(removedEntry.rowId);
   renderCalendarMonth();
 };
 
@@ -4192,8 +4269,6 @@ async function drawRecords(records, mappings) {
       const ficheDate = mapped.DateVisiteFiche || '';
       const ficheNomComplet = mapped.NomCompletStructureFiche || '';
       const ficheDescription = mapped.DescriptionFiche || '';
-      const ficheEtatStructurel = mapped.EtatStructurelFiche || '';
-      const ficheEtatSecurite = mapped.EtatSecuriteUsagerFiche || '';
       const ficheConditionVisite = mapped.ConditionVisiteFiche || '';
       const ficheDesordreMecanique = mapped.DesordreMecaniqueFiche || '';
       const ficheDesordreUsage = mapped.DesordreUsageFiche || '';
@@ -4206,7 +4281,7 @@ async function drawRecords(records, mappings) {
       ];
       const fichePhotoPresente = fichePhotos.some(p => Array.isArray(p.url) ? p.url.length > 0 : !!p.url);
       const ficheExiste = !!(ficheInspecteurs || ficheDate || ficheNomComplet || ficheDescription ||
-        ficheEtatStructurel || ficheEtatSecurite || ficheConditionVisite || ficheDesordreMecanique ||
+        ficheConditionVisite || ficheDesordreMecanique ||
         ficheDesordreUsage || fichePhotoPresente);
       if (!ficheExiste) return; // cette ligne ne contient aucune donnée de visite
 
@@ -4230,8 +4305,6 @@ async function drawRecords(records, mappings) {
           date: ficheDate,
           nomComplet: ficheNomComplet,
           description: ficheDescription,
-          etatStructurel: ficheEtatStructurel,
-          etatSecurite: ficheEtatSecurite,
           conditionVisite: ficheConditionVisite,
           desordreMecanique: ficheDesordreMecanique,
           desordreUsage: ficheDesordreUsage,
@@ -4386,13 +4459,6 @@ async function drawRecords(records, mappings) {
         return 0;
       });
 
-      // État et Sécurité proviennent de la dernière visite (fiche visite la plus récente),
-      // pas des colonnes de l\'ouvrage elle-même : ces 2 colonnes sont liées aux visites.
-      const derniereVisite = visits.length > 0 ? visits[0] : null;
-      const etat = (derniereVisite && derniereVisite.data.etatStructurel) || '—';
-      const securite = (derniereVisite && derniereVisite.data.etatSecurite) || '—';
-      registryEntry.etat = (etat !== '—') ? etat : '';
-
       // Bouton "Voir la/les fiche(s)" : libellé au singulier ou pluriel selon le nombre de visites
       const warningId = 'warn-' + Math.random().toString(36).slice(2);
       const labelBouton = visits.length > 1 ? '📄 Voir les fiches visites' : '📄 Voir la fiche visite';
@@ -4447,10 +4513,16 @@ async function drawRecords(records, mappings) {
       const objetsListe = [1, 2, 3, 4, 5, 6].map(n => ({
         nom: formatTextValue(mapped['Objet' + n + 'Nom']),
         type: formatTextValue(mapped['Objet' + n + 'Type']),
+        note: formatTextValue(mapped['Objet' + n + 'NoteGenerale']),
         lienFiche: mapped['Objet' + n + 'LienFiche'] || '',
         lienCreer: mapped['Objet' + n + 'LienCreer'] || ''
       })).filter(o => o.nom);
       window.__objetsStore[objetUid] = objetsListe;
+
+      // Note générale de l'ouvrage : calculée automatiquement (note la plus basse parmi les objets),
+      // plus aucune saisie directe de "l'état de l'ouvrage" n'est possible.
+      const noteGenerale = computeOuvrageNoteGenerale(objetsListe);
+      registryEntry.etat = noteGenerale;
 
       const objetOptionsHtml = objetsListe.map(o =>
         '<option value="' + escapeHtml(o.nom) + '">' + escapeHtml(o.nom) + (o.type ? ' (' + escapeHtml(o.type) + ')' : '') + '</option>'
@@ -4474,8 +4546,7 @@ async function drawRecords(records, mappings) {
         ? ''
         : '<div class="warning-box" id="' + warnObjetsId + '">Aucun objet n\'est renseigné pour cet ouvrage.</div>';
 
-      const etatHtml = gradeBadge(etat);
-      const securiteHtml = gradeBadge(securite);
+      const noteGeneraleHtml = gradeBadge(noteGenerale || '—');
 
       // Stocke les données nécessaires à la fiche PDF complète de l'ouvrage
       const ouvrageId = 'ouvrage-' + Math.random().toString(36).slice(2);
@@ -4491,6 +4562,7 @@ async function drawRecords(records, mappings) {
         description: mapped.DescriptionOuvrage || '',
         codeIdentification: mapped.CodeIdentificationOuvrage || '',
         indiceStrategique: mapped.IndiceStrategiqueOuvrage || '',
+        noteGenerale: noteGenerale,
         photos: window.__photoStore[photoStructureId],
         objets: objetsListe,
         travaux: travaux,
@@ -4505,8 +4577,7 @@ async function drawRecords(records, mappings) {
           '<div class="row"><b>Domaine :</b> ' + escapeHtml(classifDomaine) + '</div>' +
           '<div class="row"><b>Famille :</b> ' + escapeHtml(classifFamille) + '</div>' +
           '<div class="row"><b>Groupe :</b> ' + escapeHtml(classifGroupe) + '</div>' +
-          '<div class="row"><b>État :</b> ' + etatHtml + '</div>' +
-          '<div class="row"><b>Sécurité :</b> ' + securiteHtml + '</div>' +
+          '<div class="row"><b>Note de l\'ouvrage :</b> ' + noteGeneraleHtml + '</div>' +
           objetSelectHtml +
           '<div class="buttons" id="btns-default-' + objetUid + '">' +
             btnFiche +
@@ -4602,8 +4673,6 @@ grist.ready({
     { name: 'DateVisiteFiche', title: '🟥 Fiche visite — Date de la visite', type: 'Text,Date,DateTime,Any', optional: true },
     { name: 'NomCompletStructureFiche', title: '🟥 Fiche visite — Nom complet ouvrage', type: 'Text', optional: true },
     { name: 'DescriptionFiche', title: '🟥 Fiche visite — Description', type: 'Text', optional: true },
-    { name: 'EtatStructurelFiche', title: '🟥 Fiche visite — État structurel', type: 'Text', optional: true },
-    { name: 'EtatSecuriteUsagerFiche', title: '🟥 Fiche visite — État sécurité usager', type: 'Text', optional: true },
     { name: 'ConditionVisiteFiche', title: '🟥 Fiche visite — Condition de visite', type: 'Text', optional: true,
       description: 'Ex : météo, accès, conditions particulières lors de la visite' },
     { name: 'DesordreMecaniqueFiche', title: '🟥 Fiche visite — Désordre(s) mécanique', type: 'Text', optional: true },
@@ -4646,30 +4715,43 @@ grist.ready({
       description: 'Texte descriptif de l\'ouvrage (affiché dans la fiche PDF, section "Information sur l\'ouvrage")' },
     { name: 'CodeIdentificationOuvrage', title: '🟥 Ouvrage — Code d\'identification', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'IndiceStrategiqueOuvrage', title: '🟥 Ouvrage — Indice stratégique', type: 'Text,Numeric,Int,Any', optional: true },
+    { name: 'DateVisitePlanifiee', title: '🟥 Ouvrage — Date(s) de visite planifiée (calendrier)', type: 'Text,Date,DateTime,Any', optional: true,
+      description: 'Enregistrée automatiquement à chaque ajout/suppression dans le calendrier des visites prévues.' },
+    { name: 'ClignoteRouge', title: '🟥 Ouvrage — Clignote en rouge (travaux urgents)', type: 'Bool,Text,Any', optional: true,
+      description: 'Enregistrée automatiquement selon la case "Travaux urgent" cochée dans "Travaux à prévoir".' },
 
     // ---- Groupe "Objets liés à l'ouvrage" (jusqu'à 6, pour le menu déroulant de l'encadré) ----
+    // Chaque objet porte sa propre "note générale" (1 à 4, même échelle que GRADE_COLORS : 1=urgent … 4=très bon état).
+    // La note de l'ouvrage n'est plus saisie directement : elle est calculée automatiquement comme
+    // la note la plus basse (la plus mauvaise) parmi tous les objets renseignés (voir computeOuvrageNoteGenerale).
     { name: 'Objet1Nom', title: '🟨 Objet 1 — Nom', type: 'Text', optional: true },
     { name: 'Objet1Type', title: '🟨 Objet 1 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet1NoteGenerale', title: '🟨 Objet 1 — Note générale (1 à 4)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet1LienFiche', title: '🟨 Objet 1 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet1LienCreer', title: '🟨 Objet 1 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet2Nom', title: '🟨 Objet 2 — Nom', type: 'Text', optional: true },
     { name: 'Objet2Type', title: '🟨 Objet 2 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet2NoteGenerale', title: '🟨 Objet 2 — Note générale (1 à 4)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet2LienFiche', title: '🟨 Objet 2 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet2LienCreer', title: '🟨 Objet 2 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet3Nom', title: '🟨 Objet 3 — Nom', type: 'Text', optional: true },
     { name: 'Objet3Type', title: '🟨 Objet 3 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet3NoteGenerale', title: '🟨 Objet 3 — Note générale (1 à 4)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet3LienFiche', title: '🟨 Objet 3 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet3LienCreer', title: '🟨 Objet 3 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet4Nom', title: '🟨 Objet 4 — Nom', type: 'Text', optional: true },
     { name: 'Objet4Type', title: '🟨 Objet 4 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet4NoteGenerale', title: '🟨 Objet 4 — Note générale (1 à 4)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet4LienFiche', title: '🟨 Objet 4 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet4LienCreer', title: '🟨 Objet 4 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet5Nom', title: '🟨 Objet 5 — Nom', type: 'Text', optional: true },
     { name: 'Objet5Type', title: '🟨 Objet 5 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet5NoteGenerale', title: '🟨 Objet 5 — Note générale (1 à 4)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet5LienFiche', title: '🟨 Objet 5 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet5LienCreer', title: '🟨 Objet 5 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet6Nom', title: '🟨 Objet 6 — Nom', type: 'Text', optional: true },
     { name: 'Objet6Type', title: '🟨 Objet 6 — Type de structure ou élément d\'usages', type: 'Text', optional: true },
+    { name: 'Objet6NoteGenerale', title: '🟨 Objet 6 — Note générale (1 à 4)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet6LienFiche', title: '🟨 Objet 6 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet6LienCreer', title: '🟨 Objet 6 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
 
