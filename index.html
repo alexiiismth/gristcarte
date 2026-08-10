@@ -4295,12 +4295,32 @@ async function drawRecords(records, mappings) {
 
   // Table de correspondance : nom d\'ouvrage normalisé -> clé de groupe (pour relier les visites par nom)
   const nameToGroupKey = new Map();
+  // Table de correspondance : identifiant d'ouvrage (Code d'identification, ex. "12") -> clé de groupe.
+  // Permet à l'opérateur de saisir juste l'ID de l'ouvrage (au lieu du nom complet) dans les champs
+  // "Nom complet ouvrage" des fiches visite / travaux / objets — voir resolveOuvrageGroupKey ci-dessous.
+  const idToGroupKey = new Map();
   structureGroups.forEach((entries, key) => {
     entries.forEach(e => {
       const name = (e.mapped.NomStructure || '').toString().trim().toLowerCase();
       if (name && !nameToGroupKey.has(name)) nameToGroupKey.set(name, key);
+      const codeId = formatTextValue(e.mapped.CodeIdentificationOuvrage).trim();
+      if (codeId && !idToGroupKey.has(codeId)) idToGroupKey.set(codeId, key);
     });
   });
+
+  // Résout la clé de groupe d'un ouvrage à partir de la valeur saisie dans un champ "Nom complet
+  // ouvrage" : si la valeur est purement numérique, on la traite en priorité comme un identifiant
+  // d'ouvrage (Code d'identification) ; sinon (ou si aucun ouvrage n'a cet identifiant), on la
+  // traite comme un nom (comparaison insensible à la casse/espaces), comme avant.
+  function resolveOuvrageGroupKey(rawValue) {
+    const raw = (rawValue || '').toString().trim();
+    if (!raw) return null;
+    if (/^\d+$/.test(raw)) {
+      const byId = idToGroupKey.get(raw);
+      if (byId) return byId;
+    }
+    return nameToGroupKey.get(raw.toLowerCase()) || null;
+  }
 
   // ------------------ Visites : collectées sur TOUTES les lignes, reliées par nom (pas par position de ligne) ------------------
   // Une visite est reliée à sa ouvrage via le champ "Nom complet ouvrage" qui doit correspondre
@@ -4336,9 +4356,9 @@ async function drawRecords(records, mappings) {
         console.warn('Visite ligne ' + index + ' ignorée : le champ "Nom complet ouvrage" est vide, impossible de la relier à un ouvrage.', record);
         return;
       }
-      const matchedKey = nameToGroupKey.get(normalizedName);
+      const matchedKey = resolveOuvrageGroupKey(ficheNomComplet);
       if (!matchedKey) {
-        console.warn('Visite ligne ' + index + ' ignorée : aucun ouvrage ne correspond au nom "' + ficheNomComplet + '".', record);
+        console.warn('Visite ligne ' + index + ' ignorée : aucun ouvrage ne correspond à "' + ficheNomComplet + '" (ni par ID, ni par nom).', record);
         return;
       }
 
@@ -4383,9 +4403,9 @@ async function drawRecords(records, mappings) {
         console.warn('Travaux ligne ' + index + ' ignoré : le champ "Nom ouvrage" est vide, impossible de le relier.', record);
         return;
       }
-      const matchedKey = nameToGroupKey.get(normalizedName);
+      const matchedKey = resolveOuvrageGroupKey(travailNomOuvrage);
       if (!matchedKey) {
-        console.warn('Travaux ligne ' + index + ' ignoré : aucun ouvrage ne correspond au nom "' + travailNomOuvrage + '".', record);
+        console.warn('Travaux ligne ' + index + ' ignoré : aucun ouvrage ne correspond à "' + travailNomOuvrage + '" (ni par ID, ni par nom).', record);
         return;
       }
 
@@ -4420,9 +4440,9 @@ async function drawRecords(records, mappings) {
         console.warn('Objet ligne ' + index + ' ignoré : le champ "Nom ouvrage" est vide, impossible de le relier.', record);
         return;
       }
-      const matchedKey = nameToGroupKey.get(normalizedName);
+      const matchedKey = resolveOuvrageGroupKey(objetNomOuvrage);
       if (!matchedKey) {
-        console.warn('Objet ligne ' + index + ' ignoré : aucun ouvrage ne correspond au nom "' + objetNomOuvrage + '".', record);
+        console.warn('Objet ligne ' + index + ' ignoré : aucun ouvrage ne correspond à "' + objetNomOuvrage + '" (ni par ID, ni par nom).', record);
         return;
       }
 
@@ -4743,7 +4763,8 @@ grist.ready({
     { name: 'InspecteursFiche', title: '🟥 Fiche visite — Inspecteur(s)', type: 'Text,Choice,ChoiceList,Reference,ReferenceList,Any', optional: true,
       description: 'Nom et/ou adresse e-mail de l\'inspecteur (tout format accepté)' },
     { name: 'DateVisiteFiche', title: '🟥 Fiche visite — Date de la visite', type: 'Text,Date,DateTime,Any', optional: true },
-    { name: 'NomCompletStructureFiche', title: '🟥 Fiche visite — Nom complet ouvrage', type: 'Text', optional: true },
+    { name: 'NomCompletStructureFiche', title: '🟥 Fiche visite — Nom complet ouvrage', type: 'Text', optional: true,
+      description: 'Nom de l\'ouvrage OU son ID (Code d\'identification) — les deux sont acceptés pour relier la visite à l\'ouvrage' },
     { name: 'DescriptionFiche', title: '🟥 Fiche visite — Description', type: 'Text', optional: true },
     { name: 'ConditionVisiteFiche', title: '🟥 Fiche visite — Condition de visite', type: 'Text', optional: true,
       description: 'Ex : météo, accès, conditions particulières lors de la visite' },
@@ -4832,7 +4853,7 @@ grist.ready({
     // ce groupe permet un nombre ILLIMITÉ d'objets par ouvrage : une ligne = un objet, avec sa propre
     // photo et sa description d'utilité, consultables directement dans le widget (bouton "🗂️ Voir les objets").
     { name: 'NomOuvrageObjet', title: '🟦 Objet (fiche) — Nom complet ouvrage', type: 'Text', optional: true,
-      description: 'Doit correspondre au nom de l\'ouvrage (comme pour les fiches visite / travaux)' },
+      description: 'Nom de l\'ouvrage OU son ID (Code d\'identification) — comme pour les fiches visite / travaux' },
     { name: 'NomObjet', title: '🟦 Objet (fiche) — Nom de l\'objet', type: 'Text', optional: true },
     { name: 'TypeObjetDetail', title: '🟦 Objet (fiche) — Type', type: 'Text', optional: true },
     { name: 'PhotoObjet', title: '🟦 Objet (fiche) — Photo', type: 'Text,Attachments', optional: true,
@@ -4841,7 +4862,7 @@ grist.ready({
 
     // ---- Groupe "Travaux / Interventions" (relié par nom, comme les fiches visite) ----
     { name: 'NomOuvrageTravail', title: '🟧 Travaux — Nom complet ouvrage', type: 'Text', optional: true,
-      description: 'Doit correspondre au nom de l\'ouvrage (comme pour les fiches visite)' },
+      description: 'Nom de l\'ouvrage OU son ID (Code d\'identification) — comme pour les fiches visite' },
     { name: 'DateTravail', title: '🟧 Travaux — Date de réalisation', type: 'Text,Date,DateTime,Any', optional: true },
     { name: 'MecaniqueUsageTravail', title: '🟧 Travaux — Mécanique/Usages', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
     { name: 'TypeActionTravail', title: '🟧 Travaux — Type d\'action', type: 'Text,Choice,Reference,ReferenceList,Any', optional: true },
