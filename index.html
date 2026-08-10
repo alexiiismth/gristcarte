@@ -4810,7 +4810,7 @@ grist.ready({
       description: 'Texte descriptif de l\'ouvrage (affiché dans la fiche PDF, section "Information sur l\'ouvrage")' },
     { name: 'CodeIdentificationOuvrage', title: '🟥 Ouvrage — Code d\'identification', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'IndiceStrategiqueOuvrage', title: '🟥 Ouvrage — Indice stratégique', type: 'Text,Numeric,Int,Any', optional: true },
-    { name: 'DateVisitePlanifiee', title: '🟥 Ouvrage — Date(s) de visite planifiée (calendrier)', type: 'Text', optional: true,
+    { name: 'DateVisitePlanifiee', title: '🟥 Ouvrage — Date(s) de visite planifiée (calendrier)', type: 'Text,Any', optional: true,
       description: 'Enregistrée automatiquement à chaque ajout/suppression dans le calendrier des visites prévues. À mapper vers une colonne de type Texte (pas Date), car plusieurs dates peuvent y être listées.' },
 
     // ---- Groupe "Objets liés à l'ouvrage" (jusqu'à 6, pour le menu déroulant de l'encadré) ----
