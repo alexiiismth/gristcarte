@@ -2529,6 +2529,55 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// -------------------------------------------------------------------
+// Pré-remplissage du bouton "Créer une fiche visite" : Grist sait pré-remplir les champs d'un
+// formulaire publié via des paramètres d'URL, au format ?COL_ID=VALEUR (COL_ID = l'identifiant
+// technique de la colonne, affiché sous la case à cocher de chaque champ dans l'éditeur du
+// formulaire — voir https://support.getgrist.com/widget-form/#prefilling-form-fields).
+//
+// >>> À ADAPTER : remplace les valeurs ci-dessous par les VRAIS identifiants de colonnes (colId)
+// de TON formulaire de fiche visite dans Grist (pas forcément les mêmes noms qu'ici). Mets ''
+// pour un champ que tu ne veux pas préremplir, ou que ton formulaire n'a pas.
+window.__FICHE_VISITE_FORM_FIELD_MAP = {
+  nom: 'Nom_complet_structure',       // colId du champ "Nom complet ouvrage" dans ton formulaire
+  latitude: '',                       // colId du champ latitude (laisse '' si absent du formulaire)
+  longitude: '',                      // colId du champ longitude (laisse '' si absent du formulaire)
+  codeId: ''                          // colId du champ "Code d'identification" (laisse '' si absent)
+};
+
+// >>> À ADAPTER (optionnel) : si l'URL de ton formulaire "Créer une fiche visite" est la MÊME pour
+// tous les ouvrages, colle-la ici UNE SEULE FOIS. Elle sera utilisée automatiquement pour tous les
+// ouvrages dont la colonne "LienFormulaireStructure" est vide (donc pas besoin de la remplir sur
+// chaque ligne). Si tu préfères garder des liens différents par ouvrage, laisse cette valeur vide
+// ('') et continue de remplir la colonne Grist pour chaque ouvrage concerné — elle est toujours
+// prioritaire sur cette URL de secours.
+window.__FICHE_VISITE_FORM_URL_DEFAUT = 'https://grist.numerique.gouv.fr/o/docs/forms/q34rvA4vPo492LiyGHK8EB/31';
+
+// Construit l'URL du formulaire "Créer une fiche visite" pré-remplie avec les infos générales de
+// l'ouvrage (nom, coordonnées, code d'identification). N'ajoute que les champs dont le colId a été
+// renseigné ci-dessus et dont la valeur n'est pas vide ; si LienFormulaireStructure contient déjà
+// des paramètres (?...), les nouveaux sont ajoutés à la suite avec "&".
+function buildFicheVisiteFormUrl(baseUrl, mapped) {
+  if (!baseUrl) return '';
+  const map = window.__FICHE_VISITE_FORM_FIELD_MAP || {};
+  const nom = (mapped.NomStructure || '').toString().trim();
+  const lat = mapped.Latitude;
+  const lng = mapped.Longitude;
+  const codeId = formatTextValue(mapped.CodeIdentificationOuvrage).trim();
+  const params = [];
+  if (map.nom && nom) params.push(encodeURIComponent(map.nom) + '=' + encodeURIComponent(nom));
+  if (map.latitude && lat !== undefined && lat !== null && lat !== '') {
+    params.push(encodeURIComponent(map.latitude) + '=' + encodeURIComponent(lat));
+  }
+  if (map.longitude && lng !== undefined && lng !== null && lng !== '') {
+    params.push(encodeURIComponent(map.longitude) + '=' + encodeURIComponent(lng));
+  }
+  if (map.codeId && codeId) params.push(encodeURIComponent(map.codeId) + '=' + encodeURIComponent(codeId));
+  if (params.length === 0) return baseUrl;
+  const sep = baseUrl.indexOf('?') === -1 ? '?' : '&';
+  return baseUrl + sep + params.join('&');
+}
+
 // Stockage global des photos par identifiant unique (évite les soucis d'échappement JSON dans le HTML)
 window.__photoStore = {};
 // Stockage global des fiches de visite complètes
@@ -4614,7 +4663,7 @@ async function drawRecords(records, mappings) {
       const classifFamille = familleStructureNom || '—';
       const classifGroupe = formatTextValue(mapped.GroupeStructure) || '—';
       const lienFiche = mapped.LienFicheStructure || '';
-      const lienFormulaire = mapped.LienFormulaireStructure || '';
+      const lienFormulaire = mapped.LienFormulaireStructure || window.__FICHE_VISITE_FORM_URL_DEFAUT || '';
 
       // Bouton "Voir la/les fiche(s)" : libellé au singulier ou pluriel selon le nombre de visites
       const warningId = 'warn-' + Math.random().toString(36).slice(2);
@@ -4738,7 +4787,7 @@ async function drawRecords(records, mappings) {
           objetSelectHtml +
           '<div class="buttons" id="btns-default-' + objetUid + '">' +
             btnFiche +
-            (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(lienFormulaire) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
+            (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(buildFicheVisiteFormUrl(lienFormulaire, mapped)) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
             '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + photoStructureId + '\', ' + jsStringLiteral(nom) + ');">📷 Photo(s) initial de l\'ouvrage</a>' +
             '<a class="btn btn-form" href="#" onclick="event.preventDefault(); window.showPhotoModal(\'' + grilleEvalGlobalId + '\', ' + jsStringLiteral('Grilles d\'évaluation') + ');">📋 Grilles d\'évaluation</a>' +
             '<a class="btn btn-travaux" href="#" onclick="event.preventDefault(); window.showTravauxModal(\'' + travauxId + '\', ' + jsStringLiteral(nom) + ');">🚧 Historique des travaux</a>' +
