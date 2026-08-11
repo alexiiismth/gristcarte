@@ -2544,6 +2544,11 @@ window.__objetsDetailStore = {};
 window.__ouvrageStore = {};
 // Registre des ouvrages affichées (utilisé par le panneau de recherche Domaine/Famille/Groupe)
 window.__structureRegistry = [];
+// Registre de TOUS les ouvrages nommés (utilisé par le calendrier de planification des visites),
+// y compris ceux qui n'ont pas encore de coordonnées GPS valides (donc pas encore de marqueur sur
+// la carte, donc absents de __structureRegistry). Volontairement indépendant de la carte / des
+// visites déjà réalisées : la planification ne doit être liée à rien d'autre.
+window.__allOuvragesRegistry = [];
 // Planification des visites du calendrier : { 'AAAA-MM-JJ': [ { rowId, nom }, ... ] }
 // Stockée dans les options du widget Grist (grist.setOption / grist.onOptions), PAS dans une colonne de table.
 window.__visitPlanning = {};
@@ -3256,19 +3261,35 @@ async function updateOuvrageFields(rowId, friendlyValues) {
   }
 }
 
-// Recalcule, à partir de window.__visitPlanning, la liste des dates auxquelles cet ouvrage
-// (identifié par son rowId de ligne Grist principale) est planifié, et l'enregistre dans la
-// colonne de table "DateVisitePlanifiee" (dates séparées par ", ", ou vide si aucune planifiée).
+// Convertit une clé de date "AAAA-MM-JJ" en libellé français "JJ/MM/AAAA" pour l'affichage
+// dans la colonne de table (indépendant de tout autre formatage de date dans l'outil).
+function calendarDateKeyToFrench(dateKey) {
+  const parts = (dateKey || '').split('-');
+  if (parts.length !== 3) return dateKey || '';
+  return parts[2] + '/' + parts[1] + '/' + parts[0];
+}
+
+// Recalcule, à partir de window.__visitPlanning, la liste des visites planifiées pour cet ouvrage
+// (identifié par son rowId de ligne Grist principale), et l'enregistre dans la colonne de table
+// "DateVisitePlanifiee" sous la forme "JJ/MM/AAAA - Nom de l'ouvrage" (une entrée par date
+// planifiée, séparées par ", ", ou vide si aucune planifiée). Un même ouvrage peut avoir
+// plusieurs dates à des jours différents : elles sont toutes listées, triées de la plus proche
+// à la plus lointaine. Cette colonne est autonome : son contenu ne dépend d'aucune autre colonne
+// ni d'aucun autre ouvrage, et n'est jamais conditionné par le fait que l'ouvrage ait déjà eu
+// (ou non) une visite réalisée.
 async function syncOuvrageCalendarColumn(rowId) {
   if (rowId == null) return;
-  const dates = [];
+  const entries = [];
   Object.keys(window.__visitPlanning).forEach(function (dateKey) {
     (window.__visitPlanning[dateKey] || []).forEach(function (entry) {
-      if (entry.rowId === rowId) dates.push(dateKey);
+      if (entry.rowId === rowId) entries.push({ dateKey: dateKey, nom: entry.nom || '' });
     });
   });
-  dates.sort();
-  const ok = await updateOuvrageFields(rowId, { DateVisitePlanifiee: dates.join(', ') });
+  entries.sort(function (a, b) { return a.dateKey < b.dateKey ? -1 : (a.dateKey > b.dateKey ? 1 : 0); });
+  const text = entries
+    .map(function (e) { return calendarDateKeyToFrench(e.dateKey) + (e.nom ? ' - ' + e.nom : ''); })
+    .join(', ');
+  const ok = await updateOuvrageFields(rowId, { DateVisitePlanifiee: text });
   if (!ok) {
     showCoordToast('⚠️ Date non enregistrée dans le tableau : vérifiez que "🟥 Ouvrage — Date(s) de visite planifiée" est bien mappée (⚙️) vers une colonne de type Texte.');
   }
@@ -3661,7 +3682,7 @@ window.__openCalendarAddDialog = function (dateKey) {
   // dédupliquée par nom (insensible à la casse/espaces) pour qu'un ouvrage n'apparaisse qu'une seule fois,
   // puis triée par nom
   const seenNames = new Set();
-  window.__calendarAddOptions = (window.__structureRegistry || [])
+  window.__calendarAddOptions = (window.__allOuvragesRegistry || [])
     .filter(function (e) { return e.nom; })
     .filter(function (e) {
       const key = normalizeForSearch(e.nom);
@@ -3763,6 +3784,8 @@ window.__calendarGoToVisit = function (dateKey, idx) {
     const latlng = entry.marker.getLatLng();
     map.setView(latlng, Math.max(map.getZoom(), 16));
     entry.marker.openPopup();
+  } else {
+    showCoordToast('ℹ️ Cet ouvrage n\'a pas encore de position sur la carte (aucune coordonnée GPS enregistrée).');
   }
 };
 
@@ -4166,6 +4189,7 @@ async function drawRecords(records, mappings) {
   layerGroup.clearLayers();
   structureLayerGroup.clearLayers();
   window.__structureRegistry = [];
+  window.__allOuvragesRegistry = [];
   const bounds = [];
 
   let tokenInfo = null;
@@ -4318,6 +4342,25 @@ async function drawRecords(records, mappings) {
     } catch (err) {
       console.error('Erreur (regroupement ouvrage) ligne ' + index + ' :', err, record);
     }
+  });
+
+  // Remplit __allOuvragesRegistry avec TOUS les ouvrages nommés, qu'ils aient ou non des coordonnées
+  // valides / une visite déjà réalisée (contrairement à __structureRegistry, rempli plus loin
+  // uniquement pour les ouvrages positionnables sur la carte).
+  structureGroups.forEach((entries, key) => {
+    if (entries.length === 0) return;
+    const nom = (entries[0].mapped.NomStructure || '').toString().trim();
+    if (!nom) return; // groupes uniquement par coordonnées (sans nom) : pas exploitables pour le calendrier
+    // Même ligne "principale" que celle utilisée plus loin pour le marqueur (celle avec des
+    // coordonnées valides si l'ouvrage en a, sinon la première ligne du groupe) : la planification
+    // et le marqueur carte pointent alors toujours sur la même ligne Grist pour un même ouvrage.
+    let representative = entries[0];
+    for (const e of entries) {
+      const la = parseFrenchNumber(e.mapped.Latitude);
+      const lo = parseFrenchNumber(e.mapped.Longitude);
+      if (Number.isFinite(la) && Number.isFinite(lo) && !(la === 0 && lo === 0)) { representative = e; break; }
+    }
+    window.__allOuvragesRegistry.push({ rowId: representative.rowId, nom: nom });
   });
 
   // Table de correspondance : nom d\'ouvrage normalisé -> clé de groupe (pour relier les visites par nom)
