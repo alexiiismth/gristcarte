@@ -1034,6 +1034,19 @@
     text-align: center;
   }
   .structure-search-reset:hover { background: #f5f5f5; }
+  .structure-search-add {
+    display: block;
+    margin: 6px 8px;
+    padding: 8px 10px;
+    background: #2e7d32;
+    color: #fff;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .structure-search-add:hover { background: #256428; }
 
   /* ---- Écran de protection par mot de passe ---- */
   #password-gate-overlay {
@@ -4224,11 +4237,16 @@ function buildSearchPanel() {
 
   const treeHtml = domainesHtml + rootFamiliesHtml;
 
+  const btnAjoutOuvrageHtml = window.__ajoutOuvrageFormUrl
+    ? '<a class="structure-search-add" href="' + escapeHtml(window.__ajoutOuvrageFormUrl) + '" target="_blank" rel="noopener">➕ Rajouter un ouvrage</a>'
+    : '';
+
   panel.innerHTML =
     '<div class="structure-search-row">' +
       '<input type="text" id="structure-search-input" placeholder="Rechercher une ou des ouvrages" oninput="window.__onStructureSearchInput(this.value)" />' +
       '<button class="structure-search-toggle" onclick="window.__toggleTreePanel()">▾</button>' +
     '</div>' +
+    btnAjoutOuvrageHtml +
     '<div class="structure-tree" id="structure-tree">' + treeHtml + '</div>' +
     '<div id="structure-no-result" class="structure-no-result">Aucun ouvrage n\'est associé aux paramètres sélectionnés.</div>' +
     '<div class="structure-search-reset" onclick="window.__resetStructureSearch()">Afficher tous les ouvrages</div>';
@@ -4250,12 +4268,14 @@ async function drawRecords(records, mappings) {
 
   // Grilles d'évaluation : communes à tous les ouvrages, lues une seule fois depuis la 1ère ligne du tableau
   const grilleEvalGlobalId = 'grille-eval-global';
+  window.__ajoutOuvrageFormUrl = '';
   if (records.length > 0) {
     const firstMapped = grist.mapColumnNames(records[0]) || records[0];
     window.__photoStore[grilleEvalGlobalId] = [
       { url: firstMapped.GrilleEval1Structure || '', desc: firstMapped.DescriptionGrilleEval1Structure || '' },
       { url: firstMapped.GrilleEval2Structure || '', desc: firstMapped.DescriptionGrilleEval2Structure || '' }
     ];
+    window.__ajoutOuvrageFormUrl = firstMapped.LienFormulaireAjoutOuvrage || '';
   }
 
   // Liste des polygones de domaine (remplie pendant leur traitement ci-dessous), utilisée ensuite
@@ -4903,6 +4923,8 @@ grist.ready({
     { name: 'DescriptionPhotoFiche5', title: '🟥 Fiche visite — Description photo 5', type: 'Text', optional: true },
     { name: 'LienFormulaireStructure', title: '🟥 Ouvrage — Lien formulaire (URL)', type: 'Text', optional: true,
       description: 'URL vers le formulaire "créer une fiche visite" (peut être la même URL pour toutes les lignes)' },
+    { name: 'LienFormulaireAjoutOuvrage', title: '🟩 Global — Lien formulaire "Rajouter un ouvrage" (URL)', type: 'Text', optional: true,
+      description: 'URL du formulaire Grist pour ajouter un nouvel ouvrage. Lue une seule fois sur la 1ère ligne du tableau (mets-la sur n\'importe quelle ligne, une seule suffit).' },
     { name: 'Photo1Structure', title: '🟥 Ouvrage — Photo 1', type: 'Text,Attachments', optional: true,
       description: 'URL d\'une image OU colonne "Pièce jointe" Grist' },
     { name: 'DescriptionPhoto1Structure', title: '🟥 Ouvrage — Description photo 1', type: 'Text', optional: true },
