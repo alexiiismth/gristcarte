@@ -408,6 +408,14 @@
     color: #333;
   }
   .modal-row b { color: #000; }
+  .modal-section-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #1565c0;
+    border-bottom: 2px solid #1565c0;
+    padding-bottom: 6px;
+    margin: 22px 0 10px 0;
+  }
 
   .coord-toast {
     position: fixed;
@@ -2553,7 +2561,7 @@ function buildObjetsIETableHtml(objetsIE) {
     '</tr>'
   ).join('');
   return (
-    '<div class="modal-row" style="margin-top:12px;"><b>Décomposition en objets :</b></div>' +
+    '<div class="modal-section-title">Décomposition en objets</div>' +
     '<table class="pdf-objets-table">' +
       '<tr><th>N°</th><th>Objet</th><th>Type</th><th>IM (identification)</th></tr>' +
       rows +
@@ -2574,7 +2582,7 @@ function buildObjetsNotationTableHtml(objetsIE) {
     '</tr>'
   ).join('');
   return (
-    '<div class="modal-row" style="margin-top:12px;"><b>Notation des objets (IEm × IEu = IE) :</b></div>' +
+    '<div class="modal-section-title">Notation des objets (IEm × IEu = IE)</div>' +
     '<table class="pdf-objets-table">' +
       '<tr><th>Objet</th><th>IEm</th><th>IEu</th><th>IE (IEm × IEu)</th></tr>' +
       rows +
@@ -2596,7 +2604,7 @@ function buildDesordresTableHtml(titre, desordres) {
   return (
     '<table class="pdf-objets-table" style="margin-top:6px;">' +
       '<tr><th colspan="3">' + escapeHtml(titre) + '</th></tr>' +
-      '<tr><th>N°</th><th>Désordre</th><th>Description</th></tr>' +
+      '<tr><th>N°</th><th>Désordres à observer</th><th>Commentaire</th></tr>' +
       rows +
     '</table>'
   );
@@ -2608,7 +2616,12 @@ function buildDesordresTableHtml(titre, desordres) {
 // d'usage présents). Les objets sans aucun désordre n'apparaissent pas.
 function buildObjetsDesordresSectionHtml(objetsIE) {
   if (!objetsIE || objetsIE.length === 0) return '';
-  let html = '';
+  const hasAnyDesordre = objetsIE.some(o =>
+    (o.desordresMecaniques && o.desordresMecaniques.length > 0) ||
+    (o.desordresUsage && o.desordresUsage.length > 0)
+  );
+  if (!hasAnyDesordre) return '';
+  let html = '<div class="modal-section-title">Les désordres</div>';
   objetsIE.forEach(o => {
     const hasMeca = o.desordresMecaniques && o.desordresMecaniques.length > 0;
     const hasUsage = o.desordresUsage && o.desordresUsage.length > 0;
