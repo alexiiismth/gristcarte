@@ -2426,9 +2426,9 @@ function parseFrenchNumber(value) {
 // objets évalués lors de cette visite (le point le plus faible détermine l'état global).
 // -------------------------------------------------------------------
 
-// Construit, à partir des champs Objet1..6 NomFiche/TypeFiche/PhotoFiche/DescriptionFiche/
+// Construit, à partir des champs Objet1..6 NomFiche/TypeFiche/IMFiche/PhotoFiche/DescriptionFiche/
 // IEmFiche/IEuFiche d'une ligne de fiche visite, la liste des objets réellement renseignés
-// (nom non vide) avec leur type, photo, description, IEm, IEu et IE calculé.
+// (nom non vide) avec leur type, IM (identification), photo, description, IEm, IEu et IE calculé.
 function buildObjetsIEFromMapped(mapped) {
   const objets = [];
   for (let n = 1; n <= 6; n++) {
@@ -2440,6 +2440,7 @@ function buildObjetsIEFromMapped(mapped) {
     objets.push({
       nom: nom,
       type: formatTextValue(mapped['Objet' + n + 'TypeFiche']),
+      im: formatTextValue(mapped['Objet' + n + 'IMFiche']),
       photo: mapped['Objet' + n + 'PhotoFiche'] || '',
       utilite: formatTextValue(mapped['Objet' + n + 'DescriptionFiche']),
       ieM: Number.isFinite(ieM) ? ieM : null,
@@ -2463,8 +2464,9 @@ function formatIEValue(ie) {
   return (ie === null || ie === undefined || !Number.isFinite(ie)) ? '—' : escapeHtml(String(ie));
 }
 
-// Construit le tableau HTML "Décomposition en objets" pour la fiche visite (modal + PDF),
-// au même format que celui de la fiche complète de l'ouvrage (nom, type), avec en plus IEm/IEu/IE.
+// Construit le tableau HTML "Décomposition en objets" pour la fiche visite (modal + PDF) :
+// N°, Nom, Type, IM (identification) uniquement. La notation IEm/IEu/IE est affichée séparément,
+// juste en dessous, dans un second tableau (cf. buildObjetsNotationTableHtml).
 function buildObjetsIETableHtml(objetsIE) {
   if (!objetsIE || objetsIE.length === 0) return '';
   const rows = objetsIE.map((o, i) =>
@@ -2472,15 +2474,34 @@ function buildObjetsIETableHtml(objetsIE) {
       '<td>' + (i + 1) + '</td>' +
       '<td>' + escapeHtml(o.nom) + '</td>' +
       '<td>' + escapeHtml(o.type || '—') + '</td>' +
+      '<td>' + escapeHtml(o.im || '—') + '</td>' +
+    '</tr>'
+  ).join('');
+  return (
+    '<div class="modal-row" style="margin-top:12px;"><b>Décomposition en objets :</b></div>' +
+    '<table class="pdf-info-table" style="width:100%;">' +
+      '<tr><th>N°</th><th>Objet</th><th>Type</th><th>IM (identification)</th></tr>' +
+      rows +
+    '</table>'
+  );
+}
+
+// Construit le tableau HTML de notation (IEm, IEu, IE) des objets, affiché EN DESSOUS du tableau
+// "Décomposition en objets" (tableau séparé, pas fusionné).
+function buildObjetsNotationTableHtml(objetsIE) {
+  if (!objetsIE || objetsIE.length === 0) return '';
+  const rows = objetsIE.map(o =>
+    '<tr>' +
+      '<td>' + escapeHtml(o.nom) + '</td>' +
       '<td>' + formatIEValue(o.ieM) + '</td>' +
       '<td>' + formatIEValue(o.ieU) + '</td>' +
       '<td><b>' + formatIEValue(o.ie) + '</b></td>' +
     '</tr>'
   ).join('');
   return (
-    '<div class="modal-row" style="margin-top:12px;"><b>Décomposition en objets :</b></div>' +
+    '<div class="modal-row" style="margin-top:12px;"><b>Notation des objets (IEm × IEu = IE) :</b></div>' +
     '<table class="pdf-info-table" style="width:100%;">' +
-      '<tr><th>N°</th><th>Objet</th><th>Type</th><th>IEm</th><th>IEu</th><th>IE (IEm × IEu)</th></tr>' +
+      '<tr><th>Objet</th><th>IEm</th><th>IEu</th><th>IE (IEm × IEu)</th></tr>' +
       rows +
     '</table>'
   );
@@ -2799,7 +2820,7 @@ window.__ficheRenderTab = async function (storeId, idx) {
   const visit = group.visits[idx];
   if (!visit) return;
 
-  const objetsIEHtml = buildObjetsIETableHtml(visit.data.objetsIE);
+  const objetsIEHtml = buildObjetsIETableHtml(visit.data.objetsIE) + buildObjetsNotationTableHtml(visit.data.objetsIE);
   const rowsHtml =
     '<div class="modal-row"><b>Inspecteur(s) :</b> ' + escapeHtml(visit.data.inspecteurs || '—') + '</div>' +
     '<div class="modal-row"><b>Date de la visite :</b> ' + escapeHtml(visit.data.date || '—') + '</div>' +
@@ -2863,6 +2884,7 @@ async function buildVisitPdfHtml(visit, headingLevel) {
     '</table>' +
     '<div class="pdf-section">' +
       buildObjetsIETableHtml(visit.data.objetsIE) +
+      buildObjetsNotationTableHtml(visit.data.objetsIE) +
     '</div>' +
     '<div class="pdf-section">' +
       '<h3>Description</h3>' +
@@ -4792,7 +4814,6 @@ async function drawRecords(records, mappings) {
       );
 
 
-      const noteGeneraleHtml = gradeBadge(noteGenerale || '—');
 
       // Stocke les données nécessaires à la fiche PDF complète de l'ouvrage
       const ouvrageId = 'ouvrage-' + Math.random().toString(36).slice(2);
@@ -4828,7 +4849,6 @@ async function drawRecords(records, mappings) {
           '<div class="row"><b>Domaine :</b> ' + escapeHtml(classifDomaine) + '</div>' +
           '<div class="row"><b>Famille :</b> ' + escapeHtml(classifFamille) + '</div>' +
           '<div class="row"><b>Groupe :</b> ' + escapeHtml(classifGroupe) + '</div>' +
-          '<div class="row"><b>Note de l\'ouvrage :</b> ' + noteGeneraleHtml + '</div>' +
           '<div class="buttons" id="btns-default-' + objetUid + '">' +
             btnFiche +
             (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(buildFicheVisiteFormUrl(lienFormulaire, mapped)) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
@@ -4947,36 +4967,42 @@ grist.ready({
     { name: 'IndiceStrategiqueFiche', title: '🟥 Fiche visite — IS (indice stratégique)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet1NomFiche', title: '🟥 Fiche visite — Objet 1 : nom', type: 'Text', optional: true },
     { name: 'Objet1TypeFiche', title: '🟥 Fiche visite — Objet 1 : type', type: 'Text', optional: true },
+    { name: 'Objet1IMFiche', title: '🟥 Fiche visite — Objet 1 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet1PhotoFiche', title: '🟥 Fiche visite — Objet 1 : photo', type: 'Text,Attachments', optional: true },
     { name: 'Objet1DescriptionFiche', title: '🟥 Fiche visite — Objet 1 : description', type: 'Text', optional: true },
     { name: 'Objet1IEmFiche', title: '🟥 Fiche visite — Objet 1 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet1IEuFiche', title: '🟥 Fiche visite — Objet 1 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet2NomFiche', title: '🟥 Fiche visite — Objet 2 : nom', type: 'Text', optional: true },
     { name: 'Objet2TypeFiche', title: '🟥 Fiche visite — Objet 2 : type', type: 'Text', optional: true },
+    { name: 'Objet2IMFiche', title: '🟥 Fiche visite — Objet 2 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet2PhotoFiche', title: '🟥 Fiche visite — Objet 2 : photo', type: 'Text,Attachments', optional: true },
     { name: 'Objet2DescriptionFiche', title: '🟥 Fiche visite — Objet 2 : description', type: 'Text', optional: true },
     { name: 'Objet2IEmFiche', title: '🟥 Fiche visite — Objet 2 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet2IEuFiche', title: '🟥 Fiche visite — Objet 2 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet3NomFiche', title: '🟥 Fiche visite — Objet 3 : nom', type: 'Text', optional: true },
     { name: 'Objet3TypeFiche', title: '🟥 Fiche visite — Objet 3 : type', type: 'Text', optional: true },
+    { name: 'Objet3IMFiche', title: '🟥 Fiche visite — Objet 3 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet3PhotoFiche', title: '🟥 Fiche visite — Objet 3 : photo', type: 'Text,Attachments', optional: true },
     { name: 'Objet3DescriptionFiche', title: '🟥 Fiche visite — Objet 3 : description', type: 'Text', optional: true },
     { name: 'Objet3IEmFiche', title: '🟥 Fiche visite — Objet 3 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet3IEuFiche', title: '🟥 Fiche visite — Objet 3 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet4NomFiche', title: '🟥 Fiche visite — Objet 4 : nom', type: 'Text', optional: true },
     { name: 'Objet4TypeFiche', title: '🟥 Fiche visite — Objet 4 : type', type: 'Text', optional: true },
+    { name: 'Objet4IMFiche', title: '🟥 Fiche visite — Objet 4 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet4PhotoFiche', title: '🟥 Fiche visite — Objet 4 : photo', type: 'Text,Attachments', optional: true },
     { name: 'Objet4DescriptionFiche', title: '🟥 Fiche visite — Objet 4 : description', type: 'Text', optional: true },
     { name: 'Objet4IEmFiche', title: '🟥 Fiche visite — Objet 4 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet4IEuFiche', title: '🟥 Fiche visite — Objet 4 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet5NomFiche', title: '🟥 Fiche visite — Objet 5 : nom', type: 'Text', optional: true },
     { name: 'Objet5TypeFiche', title: '🟥 Fiche visite — Objet 5 : type', type: 'Text', optional: true },
+    { name: 'Objet5IMFiche', title: '🟥 Fiche visite — Objet 5 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet5PhotoFiche', title: '🟥 Fiche visite — Objet 5 : photo', type: 'Text,Attachments', optional: true },
     { name: 'Objet5DescriptionFiche', title: '🟥 Fiche visite — Objet 5 : description', type: 'Text', optional: true },
     { name: 'Objet5IEmFiche', title: '🟥 Fiche visite — Objet 5 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet5IEuFiche', title: '🟥 Fiche visite — Objet 5 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet6NomFiche', title: '🟥 Fiche visite — Objet 6 : nom', type: 'Text', optional: true },
     { name: 'Objet6TypeFiche', title: '🟥 Fiche visite — Objet 6 : type', type: 'Text', optional: true },
+    { name: 'Objet6IMFiche', title: '🟥 Fiche visite — Objet 6 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet6PhotoFiche', title: '🟥 Fiche visite — Objet 6 : photo', type: 'Text,Attachments', optional: true },
     { name: 'Objet6DescriptionFiche', title: '🟥 Fiche visite — Objet 6 : description', type: 'Text', optional: true },
     { name: 'Objet6IEmFiche', title: '🟥 Fiche visite — Objet 6 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
