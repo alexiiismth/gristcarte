@@ -3263,11 +3263,11 @@ window.exportOuvragePdf = async function (ouvrageId) {
       '<td>' + (i + 1) + '</td>' +
       '<td>' + escapeHtml(o.nom || '—') + '</td>' +
       '<td>' + escapeHtml(o.type || '—') + '</td>' +
-      '<td>' + gradeBadge(o.note || '—') + '</td>' +
+      '<td>' + (o.ie !== null && o.ie !== undefined ? ('IE : ' + formatIEValue(o.ie)) : gradeBadge(o.note || '—')) + '</td>' +
     '</tr>'
   ).join('');
   const objetsTable = (data.objets || []).length > 0
-    ? '<table class="pdf-table"><thead><tr><th>N°</th><th>Libellé de l\'objet</th><th>Type de structure ou élément d\'usages</th><th>Note générale</th></tr></thead><tbody>' + objetsRows + '</tbody></table>'
+    ? '<table class="pdf-table"><thead><tr><th>N°</th><th>Libellé de l\'objet</th><th>Type de structure ou élément d\'usages</th><th>Note générale / IE</th></tr></thead><tbody>' + objetsRows + '</tbody></table>'
     : '<p class="pdf-no-photo">Aucun objet renseigné.</p>';
 
   const travauxRows = (data.travaux || []).map(t =>
@@ -4830,6 +4830,15 @@ async function drawRecords(records, mappings) {
         ? ''
         : '<div class="warning-box" id="' + warnObjetsId + '">Aucun objet n\'a été relevé lors de la dernière visite de cet ouvrage.</div>';
 
+      // Pour le tableau "Décomposition en objets" de la fiche PDF complète : les objets de l'ouvrage
+      // (groupe "Objet 1 à 6", avec note générale 1-4) + les objets relevés lors de la dernière
+      // visite en date (avec leur IE). Ne sert que pour ce tableau : le calcul de la note générale
+      // de l'ouvrage ci-dessus reste basé uniquement sur objetsListe (échelle 1-4), pas sur les IE.
+      const objetsPourTableau = objetsListe.concat(
+        derniereVisiteObjets.map(o => ({ nom: o.nom, type: '', note: '', ie: o.ie }))
+      );
+
+
       const noteGeneraleHtml = gradeBadge(noteGenerale || '—');
 
       // Stocke les données nécessaires à la fiche PDF complète de l'ouvrage
@@ -4848,7 +4857,7 @@ async function drawRecords(records, mappings) {
         indiceStrategique: mapped.IndiceStrategiqueOuvrage || '',
         noteGenerale: noteGenerale,
         photos: window.__photoStore[photoStructureId],
-        objets: objetsListe,
+        objets: objetsPourTableau,
         travaux: travaux,
         visits: visits
       };
