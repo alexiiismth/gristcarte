@@ -901,6 +901,30 @@
     vertical-align: top;
   }
   .pdf-page-break { page-break-before: always; }
+  .pdf-objets-table {
+    width: auto;
+    max-width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .pdf-objets-table th {
+    text-align: left;
+    background: #eef3f8;
+    padding: 7px 9px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #555;
+    border: 1px solid #dde3e8;
+    white-space: nowrap;
+  }
+  .pdf-objets-table td {
+    padding: 7px 9px;
+    color: #222;
+    border: 1px solid #dde3e8;
+    vertical-align: top;
+  }
 
   .travaux-modal { min-width: 480px; max-width: 720px; }
   .travaux-table {
@@ -2479,7 +2503,7 @@ function buildObjetsIETableHtml(objetsIE) {
   ).join('');
   return (
     '<div class="modal-row" style="margin-top:12px;"><b>Décomposition en objets :</b></div>' +
-    '<table class="pdf-info-table" style="width:100%;">' +
+    '<table class="pdf-objets-table">' +
       '<tr><th>N°</th><th>Objet</th><th>Type</th><th>IM (identification)</th></tr>' +
       rows +
     '</table>'
@@ -2500,7 +2524,7 @@ function buildObjetsNotationTableHtml(objetsIE) {
   ).join('');
   return (
     '<div class="modal-row" style="margin-top:12px;"><b>Notation des objets (IEm × IEu = IE) :</b></div>' +
-    '<table class="pdf-info-table" style="width:100%;">' +
+    '<table class="pdf-objets-table">' +
       '<tr><th>Objet</th><th>IEm</th><th>IEu</th><th>IE (IEm × IEu)</th></tr>' +
       rows +
     '</table>'
@@ -3303,7 +3327,7 @@ window.exportOuvragePdf = async function (ouvrageId) {
     '</tr>'
   ).join('');
   const visitsSummaryTable = (data.visits || []).length > 0
-    ? '<table class="pdf-table"><thead><tr><th>Date</th><th>Condition de visite</th><th>IE ouvrage</th><th>Conclusions de la visite</th></tr></thead><tbody>' + visitsSummaryRows + '</tbody></table>'
+    ? '<table class="pdf-table"><thead><tr><th>Date</th><th>Condition de visite</th><th>IE ouvrage</th><th>Description</th></tr></thead><tbody>' + visitsSummaryRows + '</tbody></table>'
     : '<p class="pdf-no-photo">Aucune visite enregistrée.</p>';
 
   // Détail complet de chaque fiche de visite, imprimée intégralement à la suite de la fiche ouvrage
