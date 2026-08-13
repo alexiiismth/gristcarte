@@ -2450,9 +2450,52 @@ function parseFrenchNumber(value) {
 // objets évalués lors de cette visite (le point le plus faible détermine l'état global).
 // -------------------------------------------------------------------
 
+// Découpe un champ "désordres" (ou "descriptions de désordres") en plusieurs entrées.
+// L'opérateur saisit plusieurs désordres dans le MÊME champ : il saute une ligne et fait
+// précéder chaque nouveau désordre d'un tiret ("-") en début de ligne. Les lignes qui ne
+// commencent pas par un tiret sont considérées comme la suite (repli) du désordre en cours.
+function splitDesordreBlocks(text) {
+  if (!text) return [];
+  const lines = String(text).split(/\r\n|\r|\n/);
+  const blocks = [];
+  let current = null;
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (trimmed === '') continue; // ligne vide = simple séparateur, on l'ignore
+    if (trimmed.charAt(0) === '-') {
+      if (current !== null) blocks.push(current);
+      current = trimmed.substring(1).trim();
+    } else if (current === null) {
+      current = trimmed;
+    } else {
+      current += ' ' + trimmed;
+    }
+  }
+  if (current !== null) blocks.push(current);
+  return blocks.filter(b => b !== '');
+}
+
+// Associe, index par index, les désordres d'un champ avec les descriptions du champ associé
+// (le n-ième désordre du champ "désordres" correspond à la n-ième description du champ
+// "descriptions").
+function parseDesordresAvecDescriptions(desordreText, descriptionText) {
+  const desordres = splitDesordreBlocks(desordreText);
+  const descriptions = splitDesordreBlocks(descriptionText);
+  const total = Math.max(desordres.length, descriptions.length);
+  const result = [];
+  for (let i = 0; i < total; i++) {
+    const d = desordres[i] || '';
+    const desc = descriptions[i] || '';
+    if (!d && !desc) continue;
+    result.push({ desordre: d, description: desc });
+  }
+  return result;
+}
+
 // Construit, à partir des champs Objet1..6 NomFiche/TypeFiche/IMFiche/PhotoFiche/DescriptionFiche/
 // IEmFiche/IEuFiche d'une ligne de fiche visite, la liste des objets réellement renseignés
-// (nom non vide) avec leur type, IM (identification), photo, description, IEm, IEu et IE calculé.
+// (nom non vide) avec leur type, IM (identification), photo, description, IEm, IEu, IE calculé,
+// ainsi que les désordres mécaniques et désordres d'usage (avec leurs descriptions associées).
 function buildObjetsIEFromMapped(mapped) {
   const objets = [];
   for (let n = 1; n <= 6; n++) {
@@ -2469,7 +2512,15 @@ function buildObjetsIEFromMapped(mapped) {
       utilite: formatTextValue(mapped['Objet' + n + 'DescriptionFiche']),
       ieM: Number.isFinite(ieM) ? ieM : null,
       ieU: Number.isFinite(ieU) ? ieU : null,
-      ie: Number.isFinite(ie) ? ie : null
+      ie: Number.isFinite(ie) ? ie : null,
+      desordresMecaniques: parseDesordresAvecDescriptions(
+        mapped['Objet' + n + 'DesordreMecaniqueFiche'],
+        mapped['Objet' + n + 'DesordreMecaniqueDescriptionFiche']
+      ),
+      desordresUsage: parseDesordresAvecDescriptions(
+        mapped['Objet' + n + 'DesordreUsageFiche'],
+        mapped['Objet' + n + 'DesordreUsageDescriptionFiche']
+      )
     });
   }
   return objets;
@@ -2529,6 +2580,48 @@ function buildObjetsNotationTableHtml(objetsIE) {
       rows +
     '</table>'
   );
+}
+
+// Construit un tableau HTML pour une liste de désordres (mécaniques OU d'usage) d'un objet :
+// N° et Description. Retourne '' si la liste est vide (pas de tableau si pas de désordre).
+function buildDesordresTableHtml(titre, desordres) {
+  if (!desordres || desordres.length === 0) return '';
+  const rows = desordres.map((d, i) =>
+    '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
+      '<td>' + escapeHtml(d.desordre || '—') + '</td>' +
+      '<td>' + escapeHtml(d.description || '—') + '</td>' +
+    '</tr>'
+  ).join('');
+  return (
+    '<table class="pdf-objets-table" style="margin-top:6px;">' +
+      '<tr><th colspan="3">' + escapeHtml(titre) + '</th></tr>' +
+      '<tr><th>N°</th><th>Désordre</th><th>Description</th></tr>' +
+      rows +
+    '</table>'
+  );
+}
+
+// Construit, pour chaque objet ayant au moins un désordre (mécanique ou d'usage), une section
+// avec le nom de l'objet et son IM en en-tête, suivie d'un tableau "Désordres mécaniques" (si
+// désordres mécaniques présents) et d'un tableau "Désordres d'usage" séparé (si désordres
+// d'usage présents). Les objets sans aucun désordre n'apparaissent pas.
+function buildObjetsDesordresSectionHtml(objetsIE) {
+  if (!objetsIE || objetsIE.length === 0) return '';
+  let html = '';
+  objetsIE.forEach(o => {
+    const hasMeca = o.desordresMecaniques && o.desordresMecaniques.length > 0;
+    const hasUsage = o.desordresUsage && o.desordresUsage.length > 0;
+    if (!hasMeca && !hasUsage) return;
+    html +=
+      '<div class="modal-row" style="margin-top:12px;">' +
+        '<b>Objet :</b> ' + escapeHtml(o.nom || '—') +
+        ' &nbsp;&nbsp; <b>IM :</b> ' + escapeHtml(o.im || '—') +
+      '</div>';
+    html += buildDesordresTableHtml('Désordres mécaniques', o.desordresMecaniques);
+    html += buildDesordresTableHtml('Désordres d\'usage', o.desordresUsage);
+  });
+  return html;
 }
 
 // Clé de regroupement d'un ouvrage : par nom (prioritaire) sinon par coordonnées GPS arrondies
@@ -2844,7 +2937,7 @@ window.__ficheRenderTab = async function (storeId, idx) {
   const visit = group.visits[idx];
   if (!visit) return;
 
-  const objetsIEHtml = buildObjetsIETableHtml(visit.data.objetsIE) + buildObjetsNotationTableHtml(visit.data.objetsIE);
+  const objetsIEHtml = buildObjetsIETableHtml(visit.data.objetsIE) + buildObjetsNotationTableHtml(visit.data.objetsIE) + buildObjetsDesordresSectionHtml(visit.data.objetsIE);
   const rowsHtml =
     '<div class="modal-row"><b>Inspecteur(s) :</b> ' + escapeHtml(visit.data.inspecteurs || '—') + '</div>' +
     '<div class="modal-row"><b>Date de la visite :</b> ' + escapeHtml(visit.data.date || '—') + '</div>' +
@@ -2910,6 +3003,7 @@ async function buildVisitPdfHtml(visit, headingLevel) {
     '<div class="pdf-section">' +
       buildObjetsIETableHtml(visit.data.objetsIE) +
       buildObjetsNotationTableHtml(visit.data.objetsIE) +
+      buildObjetsDesordresSectionHtml(visit.data.objetsIE) +
     '</div>' +
     '<div class="pdf-section">' +
       '<h3>Information sur l\'ouvrage</h3>' +
@@ -5010,6 +5104,10 @@ grist.ready({
     { name: 'Objet1DescriptionFiche', title: '🟥 Fiche visite — Objet 1 : description', type: 'Text', optional: true },
     { name: 'Objet1IEmFiche', title: '🟥 Fiche visite — Objet 1 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet1IEuFiche', title: '🟥 Fiche visite — Objet 1 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet1DesordreMecaniqueFiche', title: '🟥 Fiche visite — Objet 1 : désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet1DesordreMecaniqueDescriptionFiche', title: '🟥 Fiche visite — Objet 1 : description désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet1DesordreUsageFiche', title: '🟥 Fiche visite — Objet 1 : désordres d\'usage', type: 'Text', optional: true },
+    { name: 'Objet1DesordreUsageDescriptionFiche', title: '🟥 Fiche visite — Objet 1 : description désordres d\'usage', type: 'Text', optional: true },
     { name: 'Objet2NomFiche', title: '🟥 Fiche visite — Objet 2 : nom', type: 'Text', optional: true },
     { name: 'Objet2TypeFiche', title: '🟥 Fiche visite — Objet 2 : type', type: 'Text', optional: true },
     { name: 'Objet2IMFiche', title: '🟥 Fiche visite — Objet 2 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
@@ -5017,6 +5115,10 @@ grist.ready({
     { name: 'Objet2DescriptionFiche', title: '🟥 Fiche visite — Objet 2 : description', type: 'Text', optional: true },
     { name: 'Objet2IEmFiche', title: '🟥 Fiche visite — Objet 2 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet2IEuFiche', title: '🟥 Fiche visite — Objet 2 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet2DesordreMecaniqueFiche', title: '🟥 Fiche visite — Objet 2 : désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet2DesordreMecaniqueDescriptionFiche', title: '🟥 Fiche visite — Objet 2 : description désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet2DesordreUsageFiche', title: '🟥 Fiche visite — Objet 2 : désordres d\'usage', type: 'Text', optional: true },
+    { name: 'Objet2DesordreUsageDescriptionFiche', title: '🟥 Fiche visite — Objet 2 : description désordres d\'usage', type: 'Text', optional: true },
     { name: 'Objet3NomFiche', title: '🟥 Fiche visite — Objet 3 : nom', type: 'Text', optional: true },
     { name: 'Objet3TypeFiche', title: '🟥 Fiche visite — Objet 3 : type', type: 'Text', optional: true },
     { name: 'Objet3IMFiche', title: '🟥 Fiche visite — Objet 3 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
@@ -5024,6 +5126,10 @@ grist.ready({
     { name: 'Objet3DescriptionFiche', title: '🟥 Fiche visite — Objet 3 : description', type: 'Text', optional: true },
     { name: 'Objet3IEmFiche', title: '🟥 Fiche visite — Objet 3 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet3IEuFiche', title: '🟥 Fiche visite — Objet 3 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet3DesordreMecaniqueFiche', title: '🟥 Fiche visite — Objet 3 : désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet3DesordreMecaniqueDescriptionFiche', title: '🟥 Fiche visite — Objet 3 : description désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet3DesordreUsageFiche', title: '🟥 Fiche visite — Objet 3 : désordres d\'usage', type: 'Text', optional: true },
+    { name: 'Objet3DesordreUsageDescriptionFiche', title: '🟥 Fiche visite — Objet 3 : description désordres d\'usage', type: 'Text', optional: true },
     { name: 'Objet4NomFiche', title: '🟥 Fiche visite — Objet 4 : nom', type: 'Text', optional: true },
     { name: 'Objet4TypeFiche', title: '🟥 Fiche visite — Objet 4 : type', type: 'Text', optional: true },
     { name: 'Objet4IMFiche', title: '🟥 Fiche visite — Objet 4 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
@@ -5031,6 +5137,10 @@ grist.ready({
     { name: 'Objet4DescriptionFiche', title: '🟥 Fiche visite — Objet 4 : description', type: 'Text', optional: true },
     { name: 'Objet4IEmFiche', title: '🟥 Fiche visite — Objet 4 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet4IEuFiche', title: '🟥 Fiche visite — Objet 4 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet4DesordreMecaniqueFiche', title: '🟥 Fiche visite — Objet 4 : désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet4DesordreMecaniqueDescriptionFiche', title: '🟥 Fiche visite — Objet 4 : description désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet4DesordreUsageFiche', title: '🟥 Fiche visite — Objet 4 : désordres d\'usage', type: 'Text', optional: true },
+    { name: 'Objet4DesordreUsageDescriptionFiche', title: '🟥 Fiche visite — Objet 4 : description désordres d\'usage', type: 'Text', optional: true },
     { name: 'Objet5NomFiche', title: '🟥 Fiche visite — Objet 5 : nom', type: 'Text', optional: true },
     { name: 'Objet5TypeFiche', title: '🟥 Fiche visite — Objet 5 : type', type: 'Text', optional: true },
     { name: 'Objet5IMFiche', title: '🟥 Fiche visite — Objet 5 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
@@ -5038,6 +5148,10 @@ grist.ready({
     { name: 'Objet5DescriptionFiche', title: '🟥 Fiche visite — Objet 5 : description', type: 'Text', optional: true },
     { name: 'Objet5IEmFiche', title: '🟥 Fiche visite — Objet 5 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet5IEuFiche', title: '🟥 Fiche visite — Objet 5 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet5DesordreMecaniqueFiche', title: '🟥 Fiche visite — Objet 5 : désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet5DesordreMecaniqueDescriptionFiche', title: '🟥 Fiche visite — Objet 5 : description désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet5DesordreUsageFiche', title: '🟥 Fiche visite — Objet 5 : désordres d\'usage', type: 'Text', optional: true },
+    { name: 'Objet5DesordreUsageDescriptionFiche', title: '🟥 Fiche visite — Objet 5 : description désordres d\'usage', type: 'Text', optional: true },
     { name: 'Objet6NomFiche', title: '🟥 Fiche visite — Objet 6 : nom', type: 'Text', optional: true },
     { name: 'Objet6TypeFiche', title: '🟥 Fiche visite — Objet 6 : type', type: 'Text', optional: true },
     { name: 'Objet6IMFiche', title: '🟥 Fiche visite — Objet 6 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
@@ -5045,6 +5159,10 @@ grist.ready({
     { name: 'Objet6DescriptionFiche', title: '🟥 Fiche visite — Objet 6 : description', type: 'Text', optional: true },
     { name: 'Objet6IEmFiche', title: '🟥 Fiche visite — Objet 6 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet6IEuFiche', title: '🟥 Fiche visite — Objet 6 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet6DesordreMecaniqueFiche', title: '🟥 Fiche visite — Objet 6 : désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet6DesordreMecaniqueDescriptionFiche', title: '🟥 Fiche visite — Objet 6 : description désordres mécaniques', type: 'Text', optional: true },
+    { name: 'Objet6DesordreUsageFiche', title: '🟥 Fiche visite — Objet 6 : désordres d\'usage', type: 'Text', optional: true },
+    { name: 'Objet6DesordreUsageDescriptionFiche', title: '🟥 Fiche visite — Objet 6 : description désordres d\'usage', type: 'Text', optional: true },
     { name: 'LienFormulaireStructure', title: '🟥 Ouvrage — Lien formulaire (URL)', type: 'Text', optional: true,
       description: 'URL vers le formulaire "créer une fiche visite" (peut être la même URL pour toutes les lignes)' },
     { name: 'LienFormulaireAjoutOuvrage', title: '🟩 Global — Lien formulaire "Rajouter un ouvrage" (URL)', type: 'Text', optional: true,
