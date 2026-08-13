@@ -2420,6 +2420,65 @@ function parseFrenchNumber(value) {
   return Number(String(value).trim().replace(',', '.'));
 }
 
+// -------------------------------------------------------------------
+// Calcul de l'IE (Indice d'État) : IE d'un objet = IEm × IEu (Indice d'État mécanique × Indice
+// d'État d'usage). L'IE de l'ouvrage, pour une visite donnée, est le MINIMUM des IE de tous les
+// objets évalués lors de cette visite (le point le plus faible détermine l'état global).
+// -------------------------------------------------------------------
+
+// Construit, à partir des champs Objet1..6 NomFiche/IEmFiche/IEuFiche d'une ligne de fiche visite,
+// la liste des objets réellement renseignés (nom non vide) avec leur IEm, IEu et IE calculé.
+function buildObjetsIEFromMapped(mapped) {
+  const objets = [];
+  for (let n = 1; n <= 6; n++) {
+    const nom = formatTextValue(mapped['Objet' + n + 'NomFiche']).trim();
+    if (!nom) continue;
+    const ieM = parseFrenchNumber(mapped['Objet' + n + 'IEmFiche']);
+    const ieU = parseFrenchNumber(mapped['Objet' + n + 'IEuFiche']);
+    const ie = (Number.isFinite(ieM) && Number.isFinite(ieU)) ? (ieM * ieU) : NaN;
+    objets.push({
+      nom: nom,
+      ieM: Number.isFinite(ieM) ? ieM : null,
+      ieU: Number.isFinite(ieU) ? ieU : null,
+      ie: Number.isFinite(ie) ? ie : null
+    });
+  }
+  return objets;
+}
+
+// IE de l'ouvrage pour cette visite = le plus petit IE parmi les objets qui ont un IE calculable.
+// Retourne null si aucun objet n'a d'IE calculable (IEm et/ou IEu manquants partout).
+function computeOuvrageIEFromObjets(objetsIE) {
+  const valeurs = (objetsIE || []).map(o => o.ie).filter(v => v !== null && v !== undefined && Number.isFinite(v));
+  if (valeurs.length === 0) return null;
+  return Math.min(...valeurs);
+}
+
+// Affiche une valeur d'IE (nombre) en HTML échappé, ou un tiret si absente
+function formatIEValue(ie) {
+  return (ie === null || ie === undefined || !Number.isFinite(ie)) ? '—' : escapeHtml(String(ie));
+}
+
+// Construit le tableau HTML "Objets évalués (IEm × IEu = IE)" pour la fiche visite (modal + PDF)
+function buildObjetsIETableHtml(objetsIE) {
+  if (!objetsIE || objetsIE.length === 0) return '';
+  const rows = objetsIE.map(o =>
+    '<tr>' +
+      '<td>' + escapeHtml(o.nom) + '</td>' +
+      '<td>' + formatIEValue(o.ieM) + '</td>' +
+      '<td>' + formatIEValue(o.ieU) + '</td>' +
+      '<td><b>' + formatIEValue(o.ie) + '</b></td>' +
+    '</tr>'
+  ).join('');
+  return (
+    '<div class="modal-row" style="margin-top:12px;"><b>Objets évalués :</b></div>' +
+    '<table class="pdf-info-table" style="width:100%;">' +
+      '<tr><th>Objet</th><th>IEm</th><th>IEu</th><th>IE (IEm × IEu)</th></tr>' +
+      rows +
+    '</table>'
+  );
+}
+
 // Clé de regroupement d'un ouvrage : par nom (prioritaire) sinon par coordonnées GPS arrondies
 function structureGroupKey(mapped) {
   const name = (mapped.NomStructure || '').toString().trim().toLowerCase();
@@ -2733,14 +2792,18 @@ window.__ficheRenderTab = async function (storeId, idx) {
   const visit = group.visits[idx];
   if (!visit) return;
 
+  const objetsIEHtml = buildObjetsIETableHtml(visit.data.objetsIE);
   const rowsHtml =
     '<div class="modal-row"><b>Inspecteur(s) :</b> ' + escapeHtml(visit.data.inspecteurs || '—') + '</div>' +
     '<div class="modal-row"><b>Date de la visite :</b> ' + escapeHtml(visit.data.date || '—') + '</div>' +
     '<div class="modal-row"><b>Nom complet ouvrage :</b> ' + escapeHtml(visit.data.nomComplet || '—') + '</div>' +
     '<div class="modal-row"><b>Condition de visite :</b> ' + escapeHtml(visit.data.conditionVisite || '—') + '</div>' +
+    '<div class="modal-row"><b>IS (indice stratégique) :</b> ' + escapeHtml(visit.data.indiceStrategique || '—') + '</div>' +
+    '<div class="modal-row"><b>IE de l\'ouvrage (min. des objets) :</b> ' + formatIEValue(visit.data.ouvrageIE) + '</div>' +
     '<div class="modal-row"><b>Description :</b> ' + escapeHtml(visit.data.description || '—') + '</div>' +
     '<div class="modal-row"><b>Désordre(s) mécanique :</b> ' + escapeHtml(visit.data.desordreMecanique || '—') + '</div>' +
-    '<div class="modal-row"><b>Désordre(s) d\'usage :</b> ' + escapeHtml(visit.data.desordreUsage || '—') + '</div>';
+    '<div class="modal-row"><b>Désordre(s) d\'usage :</b> ' + escapeHtml(visit.data.desordreUsage || '—') + '</div>' +
+    objetsIEHtml;
 
   const contentArea = document.getElementById('fiche-content-area');
   if (contentArea) {
@@ -2786,7 +2849,14 @@ async function buildVisitPdfHtml(visit, headingLevel) {
       '<tr>' +
         '<th>Condition de visite</th><td colspan="3">' + escapeHtml(visit.data.conditionVisite || '—') + '</td>' +
       '</tr>' +
+      '<tr>' +
+        '<th>IS (indice stratégique)</th><td>' + escapeHtml(visit.data.indiceStrategique || '—') + '</td>' +
+        '<th>IE de l\'ouvrage</th><td>' + formatIEValue(visit.data.ouvrageIE) + '</td>' +
+      '</tr>' +
     '</table>' +
+    '<div class="pdf-section">' +
+      buildObjetsIETableHtml(visit.data.objetsIE) +
+    '</div>' +
     '<div class="pdf-section">' +
       '<h3>Description</h3>' +
       '<p>' + escapeHtml(visit.data.description || '—') + '</p>' +
@@ -3025,53 +3095,6 @@ window.exportObjetFicheToPdf = async function () {
 };
 
 // -------------------------------------------------------------------
-// Menu déroulant des objets liés à l'ouvrage
-// -------------------------------------------------------------------
-// Quand un objet est sélectionné, les boutons par défaut de l'encadré laissent place à
-// deux boutons dédiés à l'objet ("Fiche de l'objet" / "Créer une fiche à l'objet").
-// Quand la sélection est remise à vide (ou via le bouton "Retour"), les boutons par défaut réapparaissent.
-window.__onObjetSelect = function (objetUid, selectedNom) {
-  const defaultBtns = document.getElementById('btns-default-' + objetUid);
-  const objetBtnsContainer = document.getElementById('btns-objet-' + objetUid);
-  if (!defaultBtns || !objetBtnsContainer) return;
-
-  if (!selectedNom) {
-    objetBtnsContainer.style.display = 'none';
-    objetBtnsContainer.innerHTML = '';
-    defaultBtns.style.display = 'flex';
-    return;
-  }
-
-  const objets = window.__objetsStore[objetUid] || [];
-  const objet = objets.find(o => o.nom === selectedNom);
-  if (!objet) return;
-
-  const selectId = 'select-' + objetUid;
-  const warnId = 'warn-objet-' + Math.random().toString(36).slice(2);
-
-  let btnFicheObjet, warningBox;
-  if (objet.lienFiche) {
-    btnFicheObjet = '<a class="btn btn-fiche" href="' + escapeHtml(objet.lienFiche) + '" target="_blank" rel="noopener">📄 Fiche de l\'objet</a>';
-    warningBox = '';
-  } else {
-    btnFicheObjet = '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warnId + '\').classList.add(\'visible\');">📄 Fiche de l\'objet</a>';
-    warningBox = '<div class="warning-box" id="' + warnId + '">Aucune fiche n\'est liée à cet objet, veuillez en créer une pour accéder à ce paramètre.</div>';
-  }
-
-  const btnCreerObjet = objet.lienCreer
-    ? '<a class="btn btn-form" href="' + escapeHtml(objet.lienCreer) + '" target="_blank" rel="noopener">➕ Créer une fiche à l\'objet</a>'
-    : '';
-
-  const btnRetour = '<a class="btn btn-maps" href="#" onclick="event.preventDefault(); ' +
-    'const sel = document.getElementById(' + jsStringLiteral(selectId) + '); if (sel) sel.value = \'\'; ' +
-    'window.__onObjetSelect(' + jsStringLiteral(objetUid) + ', \'\');">↩️ Retour</a>';
-
-  objetBtnsContainer.innerHTML = btnFicheObjet + btnCreerObjet + btnRetour + warningBox;
-  objetBtnsContainer.style.display = 'flex';
-  defaultBtns.style.display = 'none';
-};
-
-// -------------------------------------------------------------------
 // Modale "Travaux" : historique des interventions liées à un ouvrage
 // -------------------------------------------------------------------
 window.showTravauxModal = function (travauxId, nom) {
@@ -3230,11 +3253,12 @@ window.exportOuvragePdf = async function (ouvrageId) {
     '<tr>' +
       '<td>' + escapeHtml(v.data.date || '—') + '</td>' +
       '<td>' + escapeHtml(v.data.conditionVisite || '—') + '</td>' +
+      '<td>' + formatIEValue(v.data.ouvrageIE) + '</td>' +
       '<td>' + escapeHtml(v.data.description || '—') + '</td>' +
     '</tr>'
   ).join('');
   const visitsSummaryTable = (data.visits || []).length > 0
-    ? '<table class="pdf-table"><thead><tr><th>Date</th><th>Condition de visite</th><th>Conclusions de la visite</th></tr></thead><tbody>' + visitsSummaryRows + '</tbody></table>'
+    ? '<table class="pdf-table"><thead><tr><th>Date</th><th>Condition de visite</th><th>IE ouvrage</th><th>Conclusions de la visite</th></tr></thead><tbody>' + visitsSummaryRows + '</tbody></table>'
     : '<p class="pdf-no-photo">Aucune visite enregistrée.</p>';
 
   // Détail complet de chaque fiche de visite, imprimée intégralement à la suite de la fiche ouvrage
@@ -4485,9 +4509,13 @@ async function drawRecords(records, mappings) {
         { url: mapped.PhotoFiche5 || '', desc: mapped.DescriptionPhotoFiche5 || '' }
       ];
       const fichePhotoPresente = fichePhotos.some(p => Array.isArray(p.url) ? p.url.length > 0 : !!p.url);
+      const ficheIndiceStrategique = formatTextValue(mapped.IndiceStrategiqueFiche);
+      const objetsIE = buildObjetsIEFromMapped(mapped);
+      const objetsIEPresents = objetsIE.length > 0;
       const ficheExiste = !!(ficheInspecteurs || ficheDate || ficheNomComplet || ficheDescription ||
         ficheConditionVisite || ficheDesordreMecanique ||
-        ficheDesordreUsage || ficheClignoteRouge || fichePhotoPresente);
+        ficheDesordreUsage || ficheClignoteRouge || fichePhotoPresente ||
+        ficheIndiceStrategique || objetsIEPresents);
       if (!ficheExiste) return; // cette ligne ne contient aucune donnée de visite
 
       const normalizedName = ficheNomComplet.toString().trim().toLowerCase();
@@ -4514,7 +4542,10 @@ async function drawRecords(records, mappings) {
           desordreMecanique: ficheDesordreMecanique,
           desordreUsage: ficheDesordreUsage,
           clignoteRouge: ficheClignoteRouge,
-          photos: fichePhotos
+          photos: fichePhotos,
+          indiceStrategique: ficheIndiceStrategique,
+          objetsIE: objetsIE,
+          ouvrageIE: computeOuvrageIEFromObjets(objetsIE)
         }
       });
     } catch (err) {
@@ -4750,15 +4781,6 @@ async function drawRecords(records, mappings) {
       const noteGenerale = computeOuvrageNoteGenerale(objetsListe);
       registryEntry.etat = noteGenerale;
 
-      const objetOptionsHtml = objetsListe.map(o =>
-        '<option value="' + escapeHtml(o.nom) + '">' + escapeHtml(o.nom) + (o.type ? ' (' + escapeHtml(o.type) + ')' : '') + '</option>'
-      ).join('');
-      const objetSelectHtml = objetsListe.length > 0
-        ? '<select class="objet-select" id="select-' + objetUid + '" onchange="window.__onObjetSelect(\'' + objetUid + '\', this.value)">' +
-            '<option value="">— Sélectionner un objet —</option>' + objetOptionsHtml +
-          '</select>'
-        : '';
-
       // Fiches d'objets détaillées (nombre illimité, reliées par nom d'ouvrage) : nom + photo + utilité,
       // consultables via le bouton "🗂️ Voir les objets"
       const objetsDetail = objetsDetailByGroupKey.get(key) || [];
@@ -4804,7 +4826,6 @@ async function drawRecords(records, mappings) {
           '<div class="row"><b>Famille :</b> ' + escapeHtml(classifFamille) + '</div>' +
           '<div class="row"><b>Groupe :</b> ' + escapeHtml(classifGroupe) + '</div>' +
           '<div class="row"><b>Note de l\'ouvrage :</b> ' + noteGeneraleHtml + '</div>' +
-          objetSelectHtml +
           '<div class="buttons" id="btns-default-' + objetUid + '">' +
             btnFiche +
             (lienFormulaire ? '<a class="btn btn-form" href="' + escapeHtml(buildFicheVisiteFormUrl(lienFormulaire, mapped)) + '" target="_blank" rel="noopener">➕ Créer une fiche visite</a>' : '') +
@@ -4815,7 +4836,6 @@ async function drawRecords(records, mappings) {
             btnVoirObjets +
             '<a class="btn btn-pdf-ouvrage" href="#" onclick="event.preventDefault(); window.exportOuvragePdf(\'' + ouvrageId + '\');">📥 Télécharger la fiche PDF</a>' +
           '</div>' +
-          '<div class="buttons objet-buttons" id="btns-objet-' + objetUid + '" style="display:none;"></div>' +
           warningBox +
           warningBoxObjets +
         '</div>';
@@ -4921,6 +4941,25 @@ grist.ready({
     { name: 'DescriptionPhotoFiche4', title: '🟥 Fiche visite — Description photo 4', type: 'Text', optional: true },
     { name: 'PhotoFiche5', title: '🟥 Fiche visite — Photo 5', type: 'Text,Attachments', optional: true },
     { name: 'DescriptionPhotoFiche5', title: '🟥 Fiche visite — Description photo 5', type: 'Text', optional: true },
+    { name: 'IndiceStrategiqueFiche', title: '🟥 Fiche visite — IS (indice stratégique)', type: 'Text,Numeric,Int,Any', optional: true },
+    { name: 'Objet1NomFiche', title: '🟥 Fiche visite — Objet 1 : nom', type: 'Text', optional: true },
+    { name: 'Objet1IEmFiche', title: '🟥 Fiche visite — Objet 1 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet1IEuFiche', title: '🟥 Fiche visite — Objet 1 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet2NomFiche', title: '🟥 Fiche visite — Objet 2 : nom', type: 'Text', optional: true },
+    { name: 'Objet2IEmFiche', title: '🟥 Fiche visite — Objet 2 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet2IEuFiche', title: '🟥 Fiche visite — Objet 2 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet3NomFiche', title: '🟥 Fiche visite — Objet 3 : nom', type: 'Text', optional: true },
+    { name: 'Objet3IEmFiche', title: '🟥 Fiche visite — Objet 3 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet3IEuFiche', title: '🟥 Fiche visite — Objet 3 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet4NomFiche', title: '🟥 Fiche visite — Objet 4 : nom', type: 'Text', optional: true },
+    { name: 'Objet4IEmFiche', title: '🟥 Fiche visite — Objet 4 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet4IEuFiche', title: '🟥 Fiche visite — Objet 4 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet5NomFiche', title: '🟥 Fiche visite — Objet 5 : nom', type: 'Text', optional: true },
+    { name: 'Objet5IEmFiche', title: '🟥 Fiche visite — Objet 5 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet5IEuFiche', title: '🟥 Fiche visite — Objet 5 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet6NomFiche', title: '🟥 Fiche visite — Objet 6 : nom', type: 'Text', optional: true },
+    { name: 'Objet6IEmFiche', title: '🟥 Fiche visite — Objet 6 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
+    { name: 'Objet6IEuFiche', title: '🟥 Fiche visite — Objet 6 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'LienFormulaireStructure', title: '🟥 Ouvrage — Lien formulaire (URL)', type: 'Text', optional: true,
       description: 'URL vers le formulaire "créer une fiche visite" (peut être la même URL pour toutes les lignes)' },
     { name: 'LienFormulaireAjoutOuvrage', title: '🟩 Global — Lien formulaire "Rajouter un ouvrage" (URL)', type: 'Text', optional: true,
