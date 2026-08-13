@@ -2852,10 +2852,11 @@ window.__ficheRenderTab = async function (storeId, idx) {
     '<div class="modal-row"><b>Condition de visite :</b> ' + escapeHtml(visit.data.conditionVisite || '—') + '</div>' +
     '<div class="modal-row"><b>IS (indice stratégique) :</b> ' + escapeHtml(visit.data.indiceStrategique || '—') + '</div>' +
     '<div class="modal-row"><b>IE de l\'ouvrage (min. des objets) :</b> ' + formatIEValue(visit.data.ouvrageIE) + '</div>' +
-    '<div class="modal-row"><b>Description :</b> ' + escapeHtml(visit.data.description || '—') + '</div>' +
+    '<div class="modal-row"><b>Information sur l\'ouvrage :</b> ' + escapeHtml(visit.data.description || '—') + '</div>' +
     '<div class="modal-row"><b>Désordre(s) mécanique :</b> ' + escapeHtml(visit.data.desordreMecanique || '—') + '</div>' +
     '<div class="modal-row"><b>Désordre(s) d\'usage :</b> ' + escapeHtml(visit.data.desordreUsage || '—') + '</div>' +
-    objetsIEHtml;
+    objetsIEHtml +
+    '<div class="modal-row" style="margin-top:12px;"><b>Conclusion de la visite :</b> ' + escapeHtml(visit.data.conclusion || '—') + '</div>';
 
   const contentArea = document.getElementById('fiche-content-area');
   if (contentArea) {
@@ -2911,7 +2912,7 @@ async function buildVisitPdfHtml(visit, headingLevel) {
       buildObjetsNotationTableHtml(visit.data.objetsIE) +
     '</div>' +
     '<div class="pdf-section">' +
-      '<h3>Description</h3>' +
+      '<h3>Information sur l\'ouvrage</h3>' +
       '<p>' + escapeHtml(visit.data.description || '—') + '</p>' +
     '</div>' +
     '<div class="pdf-section">' +
@@ -2925,6 +2926,10 @@ async function buildVisitPdfHtml(visit, headingLevel) {
     '<div class="pdf-section">' +
       '<h3>Photos</h3>' +
       '<div class="pdf-photo-grid">' + photosHtml + '</div>' +
+    '</div>' +
+    '<div class="pdf-section">' +
+      '<h3>Conclusion de la visite</h3>' +
+      '<p>' + escapeHtml(visit.data.conclusion || '—') + '</p>' +
     '</div>'
   );
 }
@@ -3323,12 +3328,16 @@ window.exportOuvragePdf = async function (ouvrageId) {
       '<td>' + escapeHtml(v.data.date || '—') + '</td>' +
       '<td>' + escapeHtml(v.data.conditionVisite || '—') + '</td>' +
       '<td>' + formatIEValue(v.data.ouvrageIE) + '</td>' +
-      '<td>' + escapeHtml(v.data.description || '—') + '</td>' +
+      '<td>' + escapeHtml(v.data.conclusion || '—') + '</td>' +
     '</tr>'
   ).join('');
   const visitsSummaryTable = (data.visits || []).length > 0
-    ? '<table class="pdf-table"><thead><tr><th>Date</th><th>Condition de visite</th><th>IE ouvrage</th><th>Description</th></tr></thead><tbody>' + visitsSummaryRows + '</tbody></table>'
+    ? '<table class="pdf-table"><thead><tr><th>Date</th><th>Condition de visite</th><th>IE ouvrage</th><th>Conclusion de la visite</th></tr></thead><tbody>' + visitsSummaryRows + '</tbody></table>'
     : '<p class="pdf-no-photo">Aucune visite enregistrée.</p>';
+
+  // "Information sur l'ouvrage" de la fiche synthétique = infos rédigées par l'inspecteur
+  // lors de la DERNIÈRE visite en date (data.visits est trié du plus récent au plus ancien).
+  const derniereVisiteDescription = (data.visits && data.visits.length > 0) ? data.visits[0].data.description : '';
 
   // Détail complet de chaque fiche de visite, imprimée intégralement à la suite de la fiche ouvrage
   let visitsDetailHtml = '';
@@ -3355,7 +3364,7 @@ window.exportOuvragePdf = async function (ouvrageId) {
         '<th>Famille</th><td>' + escapeHtml(data.classifFamille || '—') + '</td>' +
       '</tr>' +
     '</table>' +
-    '<div class="pdf-section"><h3>Information sur l\'ouvrage</h3><p>' + escapeHtml(data.description || '—') + '</p></div>' +
+    '<div class="pdf-section"><h3>Information sur l\'ouvrage</h3><p>' + escapeHtml(derniereVisiteDescription || '—') + '</p></div>' +
     '<div class="pdf-section"><h3>Illustration de l\'ouvrage</h3><div class="pdf-photo-grid">' + photosHtml + '</div></div>' +
     '<div class="pdf-section"><h3>Décomposition en objets</h3>' + objetsTable + '</div>' +
     '<div class="pdf-section"><h3>Synthèse des visites</h3>' + visitsSummaryTable + '</div>' +
@@ -4565,6 +4574,7 @@ async function drawRecords(records, mappings) {
       const ficheConditionVisite = mapped.ConditionVisiteFiche || '';
       const ficheDesordreMecanique = mapped.DesordreMecaniqueFiche || '';
       const ficheDesordreUsage = mapped.DesordreUsageFiche || '';
+      const ficheConclusion = mapped.ConclusionFiche || '';
       const ficheClignoteRouge = !!mapped.ClignoteRougeFiche;
       const fichePhotos = [
         { url: mapped.PhotoFiche1 || '', desc: mapped.DescriptionPhotoFiche1 || '' },
@@ -4579,7 +4589,7 @@ async function drawRecords(records, mappings) {
       const objetsIEPresents = objetsIE.length > 0;
       const ficheExiste = !!(ficheInspecteurs || ficheDate || ficheNomComplet || ficheDescription ||
         ficheConditionVisite || ficheDesordreMecanique ||
-        ficheDesordreUsage || ficheClignoteRouge || fichePhotoPresente ||
+        ficheDesordreUsage || ficheConclusion || ficheClignoteRouge || fichePhotoPresente ||
         ficheIndiceStrategique || objetsIEPresents);
       if (!ficheExiste) return; // cette ligne ne contient aucune donnée de visite
 
@@ -4606,6 +4616,7 @@ async function drawRecords(records, mappings) {
           conditionVisite: ficheConditionVisite,
           desordreMecanique: ficheDesordreMecanique,
           desordreUsage: ficheDesordreUsage,
+          conclusion: ficheConclusion,
           clignoteRouge: ficheClignoteRouge,
           photos: fichePhotos,
           indiceStrategique: ficheIndiceStrategique,
@@ -4971,11 +4982,14 @@ grist.ready({
     { name: 'DateVisiteFiche', title: '🟥 Fiche visite — Date de la visite', type: 'Text,Date,DateTime,Any', optional: true },
     { name: 'NomCompletStructureFiche', title: '🟥 Fiche visite — Nom complet ouvrage', type: 'Text', optional: true,
       description: 'Nom de l\'ouvrage OU son ID (Code d\'identification) — les deux sont acceptés pour relier la visite à l\'ouvrage' },
-    { name: 'DescriptionFiche', title: '🟥 Fiche visite — Description', type: 'Text', optional: true },
+    { name: 'DescriptionFiche', title: '🟥 Fiche visite — Information sur l\'ouvrage', type: 'Text', optional: true,
+      description: 'Informations sur l\'ouvrage constatées par l\'inspecteur lors de cette visite' },
     { name: 'ConditionVisiteFiche', title: '🟥 Fiche visite — Condition de visite', type: 'Text', optional: true,
       description: 'Ex : météo, accès, conditions particulières lors de la visite' },
     { name: 'DesordreMecaniqueFiche', title: '🟥 Fiche visite — Désordre(s) mécanique', type: 'Text', optional: true },
     { name: 'DesordreUsageFiche', title: '🟥 Fiche visite — Désordre(s) d\'usage', type: 'Text', optional: true },
+    { name: 'ConclusionFiche', title: '🟥 Fiche visite — Conclusion de la visite', type: 'Text', optional: true,
+      description: 'Conclusion rédigée par l\'inspecteur, affichée tout en bas de la fiche visite' },
     { name: 'ClignoteRougeFiche', title: '🟥 Fiche visite — Clignote en rouge (travaux urgents)', type: 'Bool,Text,Any', optional: true,
       description: 'Case à cocher. Le pin de l\'ouvrage clignote en rouge si cette case est cochée sur sa visite la PLUS RÉCENTE.' },
     { name: 'PhotoFiche1', title: '🟥 Fiche visite — Photo 1', type: 'Text,Attachments', optional: true },
