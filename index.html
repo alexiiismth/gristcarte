@@ -2426,8 +2426,9 @@ function parseFrenchNumber(value) {
 // objets évalués lors de cette visite (le point le plus faible détermine l'état global).
 // -------------------------------------------------------------------
 
-// Construit, à partir des champs Objet1..6 NomFiche/IEmFiche/IEuFiche d'une ligne de fiche visite,
-// la liste des objets réellement renseignés (nom non vide) avec leur IEm, IEu et IE calculé.
+// Construit, à partir des champs Objet1..6 NomFiche/TypeFiche/PhotoFiche/DescriptionFiche/
+// IEmFiche/IEuFiche d'une ligne de fiche visite, la liste des objets réellement renseignés
+// (nom non vide) avec leur type, photo, description, IEm, IEu et IE calculé.
 function buildObjetsIEFromMapped(mapped) {
   const objets = [];
   for (let n = 1; n <= 6; n++) {
@@ -2438,6 +2439,9 @@ function buildObjetsIEFromMapped(mapped) {
     const ie = (Number.isFinite(ieM) && Number.isFinite(ieU)) ? (ieM * ieU) : NaN;
     objets.push({
       nom: nom,
+      type: formatTextValue(mapped['Objet' + n + 'TypeFiche']),
+      photo: mapped['Objet' + n + 'PhotoFiche'] || '',
+      utilite: formatTextValue(mapped['Objet' + n + 'DescriptionFiche']),
       ieM: Number.isFinite(ieM) ? ieM : null,
       ieU: Number.isFinite(ieU) ? ieU : null,
       ie: Number.isFinite(ie) ? ie : null
@@ -2949,27 +2953,10 @@ window.closePhotoModal = function () {
 
 // -------------------------------------------------------------------
 // Construit la liste des objets à afficher dans "🗂️ Voir les objets" : uniquement les objets
-// relevés lors de la DERNIÈRE visite en date (nom + IEm + IEu + IE), en complétant avec la fiche
-// détaillée (type / photo / utilité) si un objet du même nom existe dans le catalogue d'objets
-// détaillés de l'ouvrage (comparaison insensible à la casse/espaces).
-function buildObjetsDerniereVisite(lastVisitObjetsIE, objetsDetail) {
-  const detailByName = new Map();
-  (objetsDetail || []).forEach(o => {
-    const key = o.nom.toString().trim().toLowerCase();
-    if (!detailByName.has(key)) detailByName.set(key, o);
-  });
-  return (lastVisitObjetsIE || []).map(o => {
-    const detail = detailByName.get(o.nom.toString().trim().toLowerCase());
-    return {
-      nom: o.nom,
-      ieM: o.ieM,
-      ieU: o.ieU,
-      ie: o.ie,
-      type: detail ? detail.type : '',
-      photo: detail ? detail.photo : '',
-      utilite: detail ? detail.utilite : ''
-    };
-  });
+// relevés lors de la DERNIÈRE visite en date (nom, type, photo, description, IEm, IEu, IE),
+// tels que renseignés directement sur la fiche visite (colonnes Objet1..6).
+function buildObjetsDerniereVisite(lastVisitObjetsIE) {
+  return (lastVisitObjetsIE || []).slice();
 }
 
 // Liste des objets liés à un ouvrage ("Voir les objets") + fiche détaillée par objet
@@ -4625,41 +4612,9 @@ async function drawRecords(records, mappings) {
     }
   });
 
-  // ------------------ Objets (fiches détaillées) : reliés par nom d'ouvrage, comme les travaux/visites ------------------
-  // Contrairement au groupe "Objet1..6" (limité à 6, avec liens externes), ce groupe permet un nombre
-  // illimité d'objets par ouvrage, chacun sur sa propre ligne, avec photo + utilité affichées dans une fiche interne.
-  const objetsDetailByGroupKey = new Map();
-  records.forEach((record, index) => {
-    try {
-      const mapped = grist.mapColumnNames(record) || record;
+  // (Le catalogue "Objet (fiche)" séparé a été supprimé : type/photo/description des objets
+  // proviennent désormais directement des colonnes Objet1..6 de la fiche visite, cf. buildObjetsIEFromMapped.)
 
-      const objetNom = formatTextValue(mapped.NomObjet).trim();
-      const objetNomOuvrage = mapped.NomOuvrageObjet || '';
-
-      if (!objetNom) return; // ligne sans objet renseigné : on ignore
-
-      const normalizedName = objetNomOuvrage.toString().trim().toLowerCase();
-      if (!normalizedName) {
-        console.warn('Objet ligne ' + index + ' ignoré : le champ "Nom ouvrage" est vide, impossible de le relier.', record);
-        return;
-      }
-      const matchedKey = resolveOuvrageGroupKey(objetNomOuvrage);
-      if (!matchedKey) {
-        console.warn('Objet ligne ' + index + ' ignoré : aucun ouvrage ne correspond à "' + objetNomOuvrage + '" (ni par ID, ni par nom).', record);
-        return;
-      }
-
-      if (!objetsDetailByGroupKey.has(matchedKey)) objetsDetailByGroupKey.set(matchedKey, []);
-      objetsDetailByGroupKey.get(matchedKey).push({
-        nom: objetNom,
-        type: formatTextValue(mapped.TypeObjetDetail),
-        photo: mapped.PhotoObjet || '',
-        utilite: mapped.UtiliteObjet || ''
-      });
-    } catch (err) {
-      console.error('Erreur (collecte objet) ligne ' + index + ' :', err, record);
-    }
-  });
 
   // Collecte, pendant la boucle ci-dessous, les ouvrages qui n'ont pas encore d'identifiant
   // séquentiel (CodeIdentificationOuvrage) ainsi que le plus grand identifiant déjà attribué,
@@ -4814,12 +4769,11 @@ async function drawRecords(records, mappings) {
       const noteGenerale = computeOuvrageNoteGenerale(objetsListe);
       registryEntry.etat = noteGenerale;
 
-      // Fiches d'objets détaillées (nombre illimité, reliées par nom d'ouvrage) : nom + photo + utilité.
-      // Consultable via "🗂️ Voir les objets", mais UNIQUEMENT pour les objets relevés lors de la
-      // dernière visite en date (visits est déjà trié du plus récent au plus ancien).
-      const objetsDetail = objetsDetailByGroupKey.get(key) || [];
+      // Objets consultables via "🗂️ Voir les objets" : UNIQUEMENT ceux relevés lors de la
+      // dernière visite en date (visits est déjà trié du plus récent au plus ancien), avec leur
+      // type/photo/description/IEm/IEu/IE tels que renseignés directement sur la fiche visite.
       const derniereVisiteObjets = visits.length > 0 ? (visits[0].data.objetsIE || []) : [];
-      const objetsAffiches = buildObjetsDerniereVisite(derniereVisiteObjets, objetsDetail);
+      const objetsAffiches = buildObjetsDerniereVisite(derniereVisiteObjets);
       const objetsDetailId = 'objets-detail-' + Math.random().toString(36).slice(2);
       window.__objetsDetailStore[objetsDetailId] = objetsAffiches;
       const warnObjetsId = 'warn-objets-' + Math.random().toString(36).slice(2);
@@ -4988,21 +4942,39 @@ grist.ready({
     { name: 'DescriptionPhotoFiche5', title: '🟥 Fiche visite — Description photo 5', type: 'Text', optional: true },
     { name: 'IndiceStrategiqueFiche', title: '🟥 Fiche visite — IS (indice stratégique)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet1NomFiche', title: '🟥 Fiche visite — Objet 1 : nom', type: 'Text', optional: true },
+    { name: 'Objet1TypeFiche', title: '🟥 Fiche visite — Objet 1 : type', type: 'Text', optional: true },
+    { name: 'Objet1PhotoFiche', title: '🟥 Fiche visite — Objet 1 : photo', type: 'Text,Attachments', optional: true },
+    { name: 'Objet1DescriptionFiche', title: '🟥 Fiche visite — Objet 1 : description', type: 'Text', optional: true },
     { name: 'Objet1IEmFiche', title: '🟥 Fiche visite — Objet 1 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet1IEuFiche', title: '🟥 Fiche visite — Objet 1 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet2NomFiche', title: '🟥 Fiche visite — Objet 2 : nom', type: 'Text', optional: true },
+    { name: 'Objet2TypeFiche', title: '🟥 Fiche visite — Objet 2 : type', type: 'Text', optional: true },
+    { name: 'Objet2PhotoFiche', title: '🟥 Fiche visite — Objet 2 : photo', type: 'Text,Attachments', optional: true },
+    { name: 'Objet2DescriptionFiche', title: '🟥 Fiche visite — Objet 2 : description', type: 'Text', optional: true },
     { name: 'Objet2IEmFiche', title: '🟥 Fiche visite — Objet 2 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet2IEuFiche', title: '🟥 Fiche visite — Objet 2 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet3NomFiche', title: '🟥 Fiche visite — Objet 3 : nom', type: 'Text', optional: true },
+    { name: 'Objet3TypeFiche', title: '🟥 Fiche visite — Objet 3 : type', type: 'Text', optional: true },
+    { name: 'Objet3PhotoFiche', title: '🟥 Fiche visite — Objet 3 : photo', type: 'Text,Attachments', optional: true },
+    { name: 'Objet3DescriptionFiche', title: '🟥 Fiche visite — Objet 3 : description', type: 'Text', optional: true },
     { name: 'Objet3IEmFiche', title: '🟥 Fiche visite — Objet 3 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet3IEuFiche', title: '🟥 Fiche visite — Objet 3 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet4NomFiche', title: '🟥 Fiche visite — Objet 4 : nom', type: 'Text', optional: true },
+    { name: 'Objet4TypeFiche', title: '🟥 Fiche visite — Objet 4 : type', type: 'Text', optional: true },
+    { name: 'Objet4PhotoFiche', title: '🟥 Fiche visite — Objet 4 : photo', type: 'Text,Attachments', optional: true },
+    { name: 'Objet4DescriptionFiche', title: '🟥 Fiche visite — Objet 4 : description', type: 'Text', optional: true },
     { name: 'Objet4IEmFiche', title: '🟥 Fiche visite — Objet 4 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet4IEuFiche', title: '🟥 Fiche visite — Objet 4 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet5NomFiche', title: '🟥 Fiche visite — Objet 5 : nom', type: 'Text', optional: true },
+    { name: 'Objet5TypeFiche', title: '🟥 Fiche visite — Objet 5 : type', type: 'Text', optional: true },
+    { name: 'Objet5PhotoFiche', title: '🟥 Fiche visite — Objet 5 : photo', type: 'Text,Attachments', optional: true },
+    { name: 'Objet5DescriptionFiche', title: '🟥 Fiche visite — Objet 5 : description', type: 'Text', optional: true },
     { name: 'Objet5IEmFiche', title: '🟥 Fiche visite — Objet 5 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet5IEuFiche', title: '🟥 Fiche visite — Objet 5 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet6NomFiche', title: '🟥 Fiche visite — Objet 6 : nom', type: 'Text', optional: true },
+    { name: 'Objet6TypeFiche', title: '🟥 Fiche visite — Objet 6 : type', type: 'Text', optional: true },
+    { name: 'Objet6PhotoFiche', title: '🟥 Fiche visite — Objet 6 : photo', type: 'Text,Attachments', optional: true },
+    { name: 'Objet6DescriptionFiche', title: '🟥 Fiche visite — Objet 6 : description', type: 'Text', optional: true },
     { name: 'Objet6IEmFiche', title: '🟥 Fiche visite — Objet 6 : IEm', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Objet6IEuFiche', title: '🟥 Fiche visite — Objet 6 : IEu', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'LienFormulaireStructure', title: '🟥 Ouvrage — Lien formulaire (URL)', type: 'Text', optional: true,
@@ -5073,17 +5045,7 @@ grist.ready({
     { name: 'Objet6LienFiche', title: '🟨 Objet 6 — Lien "Fiche de l\'objet" (URL)', type: 'Text', optional: true },
     { name: 'Objet6LienCreer', title: '🟨 Objet 6 — Lien "Créer une fiche à l\'objet" (URL)', type: 'Text', optional: true },
 
-    // ---- Groupe "Fiches d'objets détaillées" (relié par nom d'ouvrage, comme les visites/travaux) ----
-    // Contrairement au groupe "Objet 1-6" ci-dessus (limité à 6, avec liens externes vers une fiche),
-    // ce groupe permet un nombre ILLIMITÉ d'objets par ouvrage : une ligne = un objet, avec sa propre
-    // photo et sa description d'utilité, consultables directement dans le widget (bouton "🗂️ Voir les objets").
-    { name: 'NomOuvrageObjet', title: '🟦 Objet (fiche) — Nom complet ouvrage', type: 'Text', optional: true,
-      description: 'Nom de l\'ouvrage OU son ID (Code d\'identification) — comme pour les fiches visite / travaux' },
-    { name: 'NomObjet', title: '🟦 Objet (fiche) — Nom de l\'objet', type: 'Text', optional: true },
-    { name: 'TypeObjetDetail', title: '🟦 Objet (fiche) — Type', type: 'Text', optional: true },
-    { name: 'PhotoObjet', title: '🟦 Objet (fiche) — Photo', type: 'Text,Attachments', optional: true,
-      description: 'URL d\'une image OU colonne "Pièce jointe" Grist (upload direct)' },
-    { name: 'UtiliteObjet', title: '🟦 Objet (fiche) — Utilité / Description', type: 'Text', optional: true },
+
 
     // ---- Groupe "Travaux / Interventions" (relié par nom, comme les fiches visite) ----
     { name: 'NomOuvrageTravail', title: '🟧 Travaux — Nom complet ouvrage', type: 'Text', optional: true,
