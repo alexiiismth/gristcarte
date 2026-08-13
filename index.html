@@ -3308,10 +3308,6 @@ window.exportOuvragePdf = async function (ouvrageId) {
         '<th>Groupe</th><td>' + escapeHtml(data.classifGroupe || '—') + '</td>' +
         '<th>Famille</th><td>' + escapeHtml(data.classifFamille || '—') + '</td>' +
       '</tr>' +
-      '<tr>' +
-        '<th>Note générale de l\'ouvrage</th><td>' + gradeBadge(data.noteGenerale || '—') + '</td>' +
-        '<th></th><td></td>' +
-      '</tr>' +
     '</table>' +
     '<div class="pdf-section"><h3>Information sur l\'ouvrage</h3><p>' + escapeHtml(data.description || '—') + '</p></div>' +
     '<div class="pdf-section"><h3>Illustration de l\'ouvrage</h3><div class="pdf-photo-grid">' + photosHtml + '</div></div>' +
@@ -4811,7 +4807,12 @@ async function drawRecords(records, mappings) {
         classifGroupe: classifGroupe,
         description: mapped.DescriptionOuvrage || '',
         codeIdentification: mapped.CodeIdentificationOuvrage || '',
-        indiceStrategique: mapped.IndiceStrategiqueOuvrage || '',
+        // IS de l'ouvrage = IS renseigné sur la dernière visite en date (visits est trié du plus
+        // récent au plus ancien). Si aucune visite n'a d'IS renseigné, on retombe sur l'ancienne
+        // colonne "IndiceStrategiqueOuvrage" (pour compatibilité si elle est encore utilisée).
+        indiceStrategique: (visits.length > 0 && visits[0].data.indiceStrategique)
+          ? visits[0].data.indiceStrategique
+          : (mapped.IndiceStrategiqueOuvrage || ''),
         noteGenerale: noteGenerale,
         photos: window.__photoStore[photoStructureId],
         objets: objetsPourTableau,
