@@ -2592,7 +2592,7 @@ function buildObjetsNotationTableHtml(objetsIE) {
 
 // Construit un tableau HTML pour une liste de désordres (mécaniques OU d'usage) d'un objet :
 // N° et Description. Retourne '' si la liste est vide (pas de tableau si pas de désordre).
-function buildDesordresTableHtml(titre, desordres) {
+function buildDesordresTableHtml(desordres) {
   if (!desordres || desordres.length === 0) return '';
   const rows = desordres.map((d, i) =>
     '<tr>' +
@@ -2603,38 +2603,42 @@ function buildDesordresTableHtml(titre, desordres) {
   ).join('');
   return (
     '<table class="pdf-objets-table" style="margin-top:6px;">' +
-      '<tr><th colspan="3">' + escapeHtml(titre) + '</th></tr>' +
       '<tr><th>N°</th><th>Désordres à observer</th><th>Commentaire</th></tr>' +
       rows +
     '</table>'
   );
 }
 
-// Construit, pour chaque objet ayant au moins un désordre (mécanique ou d'usage), une section
-// avec le nom de l'objet et son IM en en-tête, suivie d'un tableau "Désordres mécaniques" (si
-// désordres mécaniques présents) et d'un tableau "Désordres d'usage" séparé (si désordres
-// d'usage présents). Les objets sans aucun désordre n'apparaissent pas.
+// Construit, pour chaque type de désordre (mécanique, puis usage), un grand titre "Désordre(s)
+// mécanique" / "Désordre(s) d'usage" regroupant les tableaux des objets concernés. Pour chaque
+// objet ayant ce type de désordre, son nom et son IM sont rappelés juste au-dessus de son tableau
+// (un objet ayant les deux types de désordres apparaît donc sous les deux titres, avec son nom/IM
+// recopié à chaque fois). Les objets sans ce type de désordre n'apparaissent pas sous ce titre.
 function buildObjetsDesordresSectionHtml(objetsIE) {
   if (!objetsIE || objetsIE.length === 0) return '';
-  const hasAnyDesordre = objetsIE.some(o =>
-    (o.desordresMecaniques && o.desordresMecaniques.length > 0) ||
-    (o.desordresUsage && o.desordresUsage.length > 0)
+
+  function buildBlockForType(titre, getDesordres) {
+    const concernes = objetsIE.filter(o => {
+      const d = getDesordres(o);
+      return d && d.length > 0;
+    });
+    if (concernes.length === 0) return '';
+    let html = '<div class="modal-section-title">' + escapeHtml(titre) + '</div>';
+    concernes.forEach(o => {
+      html +=
+        '<div class="modal-row" style="margin-top:12px;">' +
+          '<b>Objet :</b> ' + escapeHtml(o.nom || '—') +
+          ' &nbsp;&nbsp; <b>IM :</b> ' + escapeHtml(o.im || '—') +
+        '</div>';
+      html += buildDesordresTableHtml(getDesordres(o));
+    });
+    return html;
+  }
+
+  return (
+    buildBlockForType('Désordre(s) mécanique', o => o.desordresMecaniques) +
+    buildBlockForType('Désordre(s) d\'usage', o => o.desordresUsage)
   );
-  if (!hasAnyDesordre) return '';
-  let html = '<div class="modal-section-title">Les désordres</div>';
-  objetsIE.forEach(o => {
-    const hasMeca = o.desordresMecaniques && o.desordresMecaniques.length > 0;
-    const hasUsage = o.desordresUsage && o.desordresUsage.length > 0;
-    if (!hasMeca && !hasUsage) return;
-    html +=
-      '<div class="modal-row" style="margin-top:12px;">' +
-        '<b>Objet :</b> ' + escapeHtml(o.nom || '—') +
-        ' &nbsp;&nbsp; <b>IM :</b> ' + escapeHtml(o.im || '—') +
-      '</div>';
-    html += buildDesordresTableHtml('Désordres mécaniques', o.desordresMecaniques);
-    html += buildDesordresTableHtml('Désordres d\'usage', o.desordresUsage);
-  });
-  return html;
 }
 
 // Clé de regroupement d'un ouvrage : par nom (prioritaire) sinon par coordonnées GPS arrondies
