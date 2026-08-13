@@ -2463,21 +2463,24 @@ function formatIEValue(ie) {
   return (ie === null || ie === undefined || !Number.isFinite(ie)) ? '—' : escapeHtml(String(ie));
 }
 
-// Construit le tableau HTML "Objets évalués (IEm × IEu = IE)" pour la fiche visite (modal + PDF)
+// Construit le tableau HTML "Décomposition en objets" pour la fiche visite (modal + PDF),
+// au même format que celui de la fiche complète de l'ouvrage (nom, type), avec en plus IEm/IEu/IE.
 function buildObjetsIETableHtml(objetsIE) {
   if (!objetsIE || objetsIE.length === 0) return '';
-  const rows = objetsIE.map(o =>
+  const rows = objetsIE.map((o, i) =>
     '<tr>' +
+      '<td>' + (i + 1) + '</td>' +
       '<td>' + escapeHtml(o.nom) + '</td>' +
+      '<td>' + escapeHtml(o.type || '—') + '</td>' +
       '<td>' + formatIEValue(o.ieM) + '</td>' +
       '<td>' + formatIEValue(o.ieU) + '</td>' +
       '<td><b>' + formatIEValue(o.ie) + '</b></td>' +
     '</tr>'
   ).join('');
   return (
-    '<div class="modal-row" style="margin-top:12px;"><b>Objets évalués :</b></div>' +
+    '<div class="modal-row" style="margin-top:12px;"><b>Décomposition en objets :</b></div>' +
     '<table class="pdf-info-table" style="width:100%;">' +
-      '<tr><th>Objet</th><th>IEm</th><th>IEu</th><th>IE (IEm × IEu)</th></tr>' +
+      '<tr><th>N°</th><th>Objet</th><th>Type</th><th>IEm</th><th>IEu</th><th>IE (IEm × IEu)</th></tr>' +
       rows +
     '</table>'
   );
@@ -4789,7 +4792,7 @@ async function drawRecords(records, mappings) {
       // visite en date (avec leur IE). Ne sert que pour ce tableau : le calcul de la note générale
       // de l'ouvrage ci-dessus reste basé uniquement sur objetsListe (échelle 1-4), pas sur les IE.
       const objetsPourTableau = objetsListe.concat(
-        derniereVisiteObjets.map(o => ({ nom: o.nom, type: '', note: '', ie: o.ie }))
+        derniereVisiteObjets.map(o => ({ nom: o.nom, type: o.type, note: '', ie: o.ie }))
       );
 
 
