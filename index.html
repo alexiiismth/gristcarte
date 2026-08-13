@@ -2948,6 +2948,30 @@ window.closePhotoModal = function () {
 };
 
 // -------------------------------------------------------------------
+// Construit la liste des objets à afficher dans "🗂️ Voir les objets" : uniquement les objets
+// relevés lors de la DERNIÈRE visite en date (nom + IEm + IEu + IE), en complétant avec la fiche
+// détaillée (type / photo / utilité) si un objet du même nom existe dans le catalogue d'objets
+// détaillés de l'ouvrage (comparaison insensible à la casse/espaces).
+function buildObjetsDerniereVisite(lastVisitObjetsIE, objetsDetail) {
+  const detailByName = new Map();
+  (objetsDetail || []).forEach(o => {
+    const key = o.nom.toString().trim().toLowerCase();
+    if (!detailByName.has(key)) detailByName.set(key, o);
+  });
+  return (lastVisitObjetsIE || []).map(o => {
+    const detail = detailByName.get(o.nom.toString().trim().toLowerCase());
+    return {
+      nom: o.nom,
+      ieM: o.ieM,
+      ieU: o.ieU,
+      ie: o.ie,
+      type: detail ? detail.type : '',
+      photo: detail ? detail.photo : '',
+      utilite: detail ? detail.utilite : ''
+    };
+  });
+}
+
 // Liste des objets liés à un ouvrage ("Voir les objets") + fiche détaillée par objet
 // -------------------------------------------------------------------
 // storeId pointe vers un tableau dans window.__objetsDetailStore : [{ nom, type, photo, utilite }, ...]
@@ -2992,6 +3016,7 @@ window.__renderObjetsList = function (storeId, ouvrageNom) {
         jsStringLiteral(storeId) + ', ' + i + ', ' + jsStringLiteral(ouvrageNom) + ');">' +
         '<span>' + escapeHtml(o.nom) + '</span>' +
         (o.type ? '<span class="objet-list-type">' + escapeHtml(o.type) + '</span>' : '') +
+        '<span class="objet-list-type">IE : ' + formatIEValue(o.ie) + '</span>' +
       '</a>'
     ).join('') +
   '</div>';
@@ -3022,6 +3047,7 @@ window.__showObjetFiche = async function (storeId, idx, ouvrageNom) {
       jsStringLiteral('🗂️ Objets — ' + (ouvrageNom || '')) + ';">← Retour à la liste des objets</a>' +
     '<div class="objet-fiche-photo"><p>Chargement de la photo…</p></div>' +
     (objet.type ? '<div class="modal-row"><b>Type :</b> ' + escapeHtml(objet.type) + '</div>' : '') +
+    '<div class="modal-row"><b>IEm :</b> ' + formatIEValue(objet.ieM) + ' &nbsp;|&nbsp; <b>IEu :</b> ' + formatIEValue(objet.ieU) + ' &nbsp;|&nbsp; <b>IE :</b> ' + formatIEValue(objet.ie) + '</div>' +
     '<div class="modal-row"><b>Utilité / Description :</b> ' + escapeHtml(objet.utilite || '—') + '</div>' +
     '<button class="btn btn-form fiche-pdf-btn" onclick="window.exportObjetFicheToPdf()">🖨️ Exporter en PDF</button>';
 
@@ -3084,6 +3110,13 @@ window.exportObjetFicheToPdf = async function () {
       '<tr>' +
         '<th>Nom de l\'objet</th><td>' + escapeHtml(objet.nom || '—') + '</td>' +
         '<th>Type</th><td>' + escapeHtml(objet.type || '—') + '</td>' +
+      '</tr>' +
+      '<tr>' +
+        '<th>IEm</th><td>' + formatIEValue(objet.ieM) + '</td>' +
+        '<th>IEu</th><td>' + formatIEValue(objet.ieU) + '</td>' +
+      '</tr>' +
+      '<tr>' +
+        '<th>IE (IEm × IEu)</th><td colspan="3">' + formatIEValue(objet.ie) + '</td>' +
       '</tr>' +
     '</table>' +
     '<div class="pdf-section"><h3>Utilité / Description</h3><p>' + escapeHtml(objet.utilite || '—') + '</p></div>' +
@@ -4781,18 +4814,21 @@ async function drawRecords(records, mappings) {
       const noteGenerale = computeOuvrageNoteGenerale(objetsListe);
       registryEntry.etat = noteGenerale;
 
-      // Fiches d'objets détaillées (nombre illimité, reliées par nom d'ouvrage) : nom + photo + utilité,
-      // consultables via le bouton "🗂️ Voir les objets"
+      // Fiches d'objets détaillées (nombre illimité, reliées par nom d'ouvrage) : nom + photo + utilité.
+      // Consultable via "🗂️ Voir les objets", mais UNIQUEMENT pour les objets relevés lors de la
+      // dernière visite en date (visits est déjà trié du plus récent au plus ancien).
       const objetsDetail = objetsDetailByGroupKey.get(key) || [];
+      const derniereVisiteObjets = visits.length > 0 ? (visits[0].data.objetsIE || []) : [];
+      const objetsAffiches = buildObjetsDerniereVisite(derniereVisiteObjets, objetsDetail);
       const objetsDetailId = 'objets-detail-' + Math.random().toString(36).slice(2);
-      window.__objetsDetailStore[objetsDetailId] = objetsDetail;
+      window.__objetsDetailStore[objetsDetailId] = objetsAffiches;
       const warnObjetsId = 'warn-objets-' + Math.random().toString(36).slice(2);
-      const btnVoirObjets = objetsDetail.length > 0
+      const btnVoirObjets = objetsAffiches.length > 0
         ? '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); window.showObjetsListModal(\'' + objetsDetailId + '\', ' + jsStringLiteral(nom) + ');">🗂️ Voir les objets</a>'
         : '<a class="btn btn-fiche" href="#" onclick="event.preventDefault(); document.getElementById(\'' + warnObjetsId + '\').classList.add(\'visible\');">🗂️ Voir les objets</a>';
-      const warningBoxObjets = objetsDetail.length > 0
+      const warningBoxObjets = objetsAffiches.length > 0
         ? ''
-        : '<div class="warning-box" id="' + warnObjetsId + '">Aucun objet n\'est renseigné pour cet ouvrage.</div>';
+        : '<div class="warning-box" id="' + warnObjetsId + '">Aucun objet n\'a été relevé lors de la dernière visite de cet ouvrage.</div>';
 
       const noteGeneraleHtml = gradeBadge(noteGenerale || '—');
 
