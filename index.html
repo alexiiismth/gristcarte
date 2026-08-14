@@ -2145,6 +2145,17 @@ window.showGuideModal = function () {
     '<h3>Présentation générale</h3>' +
     '<p>La carte affiche deux types d\'éléments : les <b>domaines/parcs</b> (polygones colorés délimitant leur emprise géographique) et les <b>ouvrages (ouvrages)</b>, représentées par des pins rouges par défaut, ou par une photo personnalisée si elle a été renseignée (par exemple l\'image d\'un pont).</p>' +
 
+    '<h3>🔒 Accès à la carte</h3>' +
+    '<p>À l\'ouverture, un écran de connexion demande un mot de passe avant d\'afficher la carte. Deux façons d\'y accéder :</p>' +
+    '<ul>' +
+      '<li><b>Saisir le mot de passe</b> et cliquer sur « Valider » : ouvre la carte en <b>accès complet</b>, avec l\'ensemble des fonctionnalités décrites dans ce guide.</li>' +
+      '<li><b>🚧 Je viens de réaliser des travaux</b> : ouvre la carte en <b>mode travaux</b>, sans mot de passe, à destination des intervenants venant simplement enregistrer une intervention. Un bandeau orange « Mode travaux — enregistrement uniquement » reste affiché en haut de l\'écran tant que ce mode est actif.</li>' +
+    '</ul>' +
+    '<div style="background:#fff8f0;border:1px solid #e0e6eb;border-radius:10px;padding:10px 14px;margin:10px 0;border-left:4px solid #e65100;">' +
+      '<p style="margin:0;">En <b>mode travaux</b>, l\'interface est volontairement réduite : plus de barre d\'outils, de panneau de recherche, de légende des domaines, ni de boutons fiche/formulaire/itinéraire/photos/PDF/objets/travaux à prévoir dans l\'encadré d\'un ouvrage (le guide lui-même n\'est alors plus accessible). Seul reste disponible, en survolant un ouvrage, le bouton <b>🚧 Historique des travaux</b>, qui permet d\'enregistrer une nouvelle intervention (voir plus bas). Pour retrouver l\'accès complet, rechargez la page et saisissez le mot de passe.</p>' +
+    '</div>' +
+    '<p>Une fois déverrouillée (dans un mode ou dans l\'autre), la carte le reste pour la durée de la session de navigation : il n\'est pas nécessaire de ressaisir le mot de passe à chaque consultation tant que l\'onglet reste ouvert.</p>' +
+
     '<h3>Consulter un domaine</h3>' +
     '<p>Survolez un polygone pour afficher un encadré indiquant son nom, son estimation de superficie (ha), sa ou ses protection(s), et un bouton 📷 Photo pour voir une image illustrative avec sa description.</p>' +
 
@@ -2176,7 +2187,7 @@ window.showGuideModal = function () {
       '<tr><td style="padding:6px;border:1px solid #ddd;">➕ Créer une fiche visite</td><td style="padding:6px;border:1px solid #ddd;">Redirige vers le formulaire externe de saisie d\'une nouvelle visite.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📷 Photo(s) initial de l\'ouvrage</td><td style="padding:6px;border:1px solid #ddd;">Affiche jusqu\'à 4 photos de référence avec description.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à tous les ouvrages.</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">🚧 Historique des travaux</td><td style="padding:6px;border:1px solid #ddd;">Affiche l\'historique des interventions réalisées sur l\'ouvrage (date, mécanique/usages, type d\'action, commentaire).</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">🚧 Historique des travaux</td><td style="padding:6px;border:1px solid #ddd;">Affiche l\'historique des interventions réalisées sur l\'ouvrage (date, mécanique/usages, type d\'action, commentaire) et propose un formulaire pour <b>enregistrer une nouvelle intervention</b> (date, mécanique/usages, type d\'action, commentaire). C\'est le seul bouton encore disponible en mode travaux.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">⚠️ Travaux à prévoir</td><td style="padding:6px;border:1px solid #ddd;">Note libre décrivant les travaux à planifier, avec une case "Travaux standard" ou "Travaux urgent" (à titre indicatif seulement, ne fait plus clignoter le pin).</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">🔴 Clignotement du pin</td><td style="padding:6px;border:1px solid #ddd;">Le pin de l\'ouvrage clignote en rouge si la case "Clignote en rouge" est cochée sur sa visite (fiche visite) la PLUS RÉCENTE.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">🗂️ Voir les objets</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la liste des objets liés à l\'ouvrage (nombre illimité). Cliquer sur un nom affiche sa fiche : photo, type, utilité/description.</td></tr>' +
