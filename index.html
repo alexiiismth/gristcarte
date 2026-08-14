@@ -3028,13 +3028,13 @@ async function buildVisitPdfHtml(visit, headingLevel) {
       '</tr>' +
     '</table>' +
     '<div class="pdf-section">' +
+      '<h3>Information sur l\'ouvrage</h3>' +
+      '<p>' + escapeHtml(visit.data.description || '—') + '</p>' +
+    '</div>' +
+    '<div class="pdf-section">' +
       buildObjetsIETableHtml(visit.data.objetsIE) +
       buildObjetsNotationTableHtml(visit.data.objetsIE) +
       buildObjetsDesordresSectionHtml(visit.data.objetsIE) +
-    '</div>' +
-    '<div class="pdf-section">' +
-      '<h3>Information sur l\'ouvrage</h3>' +
-      '<p>' + escapeHtml(visit.data.description || '—') + '</p>' +
     '</div>' +
     '<div class="pdf-section">' +
       '<h3>Photos</h3>' +
