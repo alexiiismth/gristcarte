@@ -2165,20 +2165,18 @@ window.showGuideModal = function () {
       '<li>Le nom de l\'ouvrage, avec son numéro affiché en gris juste en dessous (« Ouvrage n°X »)</li>' +
       '<li>Son <b>domaine géographique</b> (détecté automatiquement si elle se trouve dans un polygone, sinon repli manuel)</li>' +
       '<li>Sa classification <b>Domaine / Famille / Groupe</b>, utilisée pour la recherche</li>' +
-      '<li>Son <b>état structurel</b> et son <b>état de sécurité usager</b> (lettre A à F, colorée — voir ci-dessous), provenant de la fiche de la visite la plus récente</li>' +
+      '<li>Son <b>état structurel</b> et son <b>état de sécurité usager</b> (chiffre de 1 à 4, coloré — voir ci-dessous), provenant de la fiche de la visite la plus récente</li>' +
     '</ul>' +
     '<div style="background:#f4f7fa;border:1px solid #e0e6eb;border-radius:10px;padding:10px 14px;margin:10px 0;border-left:4px solid #1565c0;">' +
       '<p style="margin:0;">L\'encadré reste ouvert tant que la souris est dessus (ou en mouvement dessus), et se referme automatiquement <b>1 seconde</b> après l\'avoir quitté — largement de quoi cliquer un bouton sans qu\'il disparaisse.</p>' +
     '</div>' +
 
-    '<h3>Code couleur des états (A → F)</h3>' +
-    '<p>L\'état structurel et l\'état de sécurité usager sont affichés sous forme de badge coloré selon leur lettre :</p>' +
-    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#1b5e20;">A</span><span style="font-size:13px;color:#333;">Bon état</span></div>' +
-    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#66bb6a;">B</span><span style="font-size:13px;color:#333;">Bon état</span></div>' +
-    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#3a3000;font-weight:700;font-size:12px;flex-shrink:0;background:#fdd835;">C</span><span style="font-size:13px;color:#333;">À surveiller</span></div>' +
-    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#f57c00;">D</span><span style="font-size:13px;color:#333;">Travaux nécessaires</span></div>' +
-    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#e53935;">E</span><span style="font-size:13px;color:#333;">Intervention urgente</span></div>' +
-    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#7f0000;">F</span><span style="font-size:13px;color:#333;">Intervention urgente</span></div>' +
+    '<h3>Code couleur des états (1 → 4)</h3>' +
+    '<p>L\'état structurel et l\'état de sécurité usager sont affichés sous forme de badge coloré selon leur chiffre :</p>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#e53935;">1</span><span style="font-size:13px;color:#333;">Intervention urgente</span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#f57c00;">2</span><span style="font-size:13px;color:#333;">Travaux nécessaires</span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#66bb6a;">3</span><span style="font-size:13px;color:#333;">Bon état</span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;margin:4px 0;"><span style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;font-size:12px;flex-shrink:0;background:#1b5e20;">4</span><span style="font-size:13px;color:#333;">Très bon état</span></div>' +
 
     '<h3>Boutons de l\'encadré ouvrage</h3>' +
     '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
@@ -2266,14 +2264,14 @@ window.showGuideModal = function () {
     '</ul>' +
 
     '<h3>Santé du patrimoine</h3>' +
-    '<p>Ce tableau de bord recense l\'ensemble des ouvrages et calcule automatiquement, à partir de la lettre d\'état structurel de leur dernière visite :</p>' +
+    '<p>Ce tableau de bord recense l\'ensemble des ouvrages et calcule automatiquement, à partir de la note générale la plus basse parmi leurs objets (échelle de 1 à 4) :</p>' +
     '<ul>' +
-      '<li><b>Bon état</b> (A/B)</li>' +
-      '<li><b>À surveiller</b> (C)</li>' +
-      '<li><b>Travaux nécessaires</b> (D)</li>' +
-      '<li><b>Intervention urgente</b> (E/F)</li>' +
+      '<li><b>Intervention urgente</b> (1)</li>' +
+      '<li><b>Travaux nécessaires</b> (2)</li>' +
+      '<li><b>Bon état</b> (3)</li>' +
+      '<li><b>Très bon état</b> (4)</li>' +
     '</ul>' +
-    '<p>Chaque catégorie est représentée par une barre de progression avec son pourcentage et son nombre d\'ouvrages. Les ouvrages sans état renseigné sont indiquées séparément et exclues du calcul des pourcentages.</p>' +
+    '<p>Chaque catégorie est représentée par une barre de progression avec son pourcentage et son nombre d\'ouvrages. Les ouvrages sans note renseignée sont indiqués séparément et exclus du calcul des pourcentages.</p>' +
 
     '<h3>Itinéraire multi-ouvrages</h3>' +
     '<p>Pour organiser une tournée de plusieurs visites :</p>' +
