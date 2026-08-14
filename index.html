@@ -2599,11 +2599,12 @@ function buildDesordresTableHtml(desordres) {
       '<td>' + (i + 1) + '</td>' +
       '<td>' + escapeHtml(d.desordre || '—') + '</td>' +
       '<td>' + escapeHtml(d.description || '—') + '</td>' +
+      '<td></td>' +
     '</tr>'
   ).join('');
   return (
     '<table class="pdf-objets-table" style="margin-top:6px;">' +
-      '<tr><th>N°</th><th>Désordres à observer</th><th>Commentaire</th></tr>' +
+      '<tr><th>N°</th><th>Désordres à observer</th><th>Commentaire</th><th>Photos</th></tr>' +
       rows +
     '</table>'
   );
@@ -3025,14 +3026,6 @@ async function buildVisitPdfHtml(visit, headingLevel) {
     '<div class="pdf-section">' +
       '<h3>Information sur l\'ouvrage</h3>' +
       '<p>' + escapeHtml(visit.data.description || '—') + '</p>' +
-    '</div>' +
-    '<div class="pdf-section">' +
-      '<h3>Désordre(s) mécanique</h3>' +
-      '<p>' + escapeHtml(visit.data.desordreMecanique || '—') + '</p>' +
-    '</div>' +
-    '<div class="pdf-section">' +
-      '<h3>Désordre(s) d\'usage</h3>' +
-      '<p>' + escapeHtml(visit.data.desordreUsage || '—') + '</p>' +
     '</div>' +
     '<div class="pdf-section">' +
       '<h3>Photos</h3>' +
