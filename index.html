@@ -1347,10 +1347,12 @@
   // ---------------------------------------------------------------
   // Liste des comptes autorisés.
   // - "full: true"  -> l'identifiant voit TOUS les ouvrages de la carte.
-  // - "full: false" -> l'identifiant ne voit QUE les ouvrages dont le nom
-  //   contient "(NomDeL'identifiant)" entre parenthèses (ex : un ouvrage
-  //   nommé "Digue de la Plage (Test 1)" sera visible par le compte
-  //   "Test 1", mais pas par un autre compte restreint).
+  // - "full: false" -> l'identifiant ne voit QUE les ouvrages dont la colonne
+  //   "🟥 Ouvrage — Gestionnaire(s)" contient son identifiant (le nom doit être
+  //   EXACTEMENT le même que l'identifiant, voir window.__isOuvrageAccessible
+  //   plus bas). Plusieurs gestionnaires peuvent être renseignés sur un même
+  //   ouvrage (valeurs séparées par une virgule, un point-virgule, ou colonne
+  //   de type Liste de choix / Liste de références dans Grist).
   // Pour ajouter un nouveau compte, il suffit d'ajouter une ligne ici.
   // ---------------------------------------------------------------
   var ACCOUNTS = {
@@ -1362,16 +1364,31 @@
   var IDENT_STORAGE_KEY = 'cerema-carte-widget-identifiant'; // identifiant utilisé (mode 'admin' uniquement)
 
   // Fonction globale utilisée par le reste du widget (voir drawRecords) pour savoir si un
-  // ouvrage donné (via son nom) doit être affiché pour l'identifiant actuellement connecté.
-  window.__isOuvrageAccessible = function (nomOuvrage) {
+  // ouvrage donné (via sa colonne "Gestionnaire") doit être affiché pour l'identifiant
+  // actuellement connecté. valeurGestionnaire peut être : une chaîne de texte (avec
+  // éventuellement plusieurs noms séparés par , ; ou /), ou un tableau (colonne Grist de
+  // type Liste de choix / Liste de références, généralement sous la forme ['L', 'nom1', 'nom2', ...]).
+  window.__isOuvrageAccessible = function (valeurGestionnaire) {
     var level = window.__accessLevel;
     if (level === 'full' || level === 'travaux') return true; // accès complet
-    var identifiant = window.__currentIdentifiant || '';
+    var identifiant = (window.__currentIdentifiant || '').toString().trim().toLowerCase();
     if (!identifiant) return false;
-    var nom = (nomOuvrage || '').toString();
-    if (!nom) return false;
-    var motif = '(' + identifiant + ')';
-    return nom.toLowerCase().indexOf(motif.toLowerCase()) !== -1;
+    if (valeurGestionnaire === null || valeurGestionnaire === undefined) return false;
+
+    var noms = [];
+    if (Array.isArray(valeurGestionnaire)) {
+      // Colonne Grist "Liste de choix"/"Liste de références" : premier élément = marqueur 'L'
+      valeurGestionnaire.forEach(function (v) {
+        if (v === 'L') return;
+        if (v !== null && v !== undefined && v !== '') noms.push(v);
+      });
+    } else {
+      noms = valeurGestionnaire.toString().split(/[,;/]+/);
+    }
+
+    return noms.some(function (n) {
+      return (n || '').toString().trim().toLowerCase() === identifiant;
+    });
   };
 
   function populateIdentifiantSelect() {
@@ -4682,10 +4699,10 @@ async function drawRecords(records, mappings) {
     try {
       const mapped = grist.mapColumnNames(record) || record;
       // Contrôle d'accès : un identifiant restreint (voir écran de connexion) ne doit voir
-      // que les ouvrages dont le nom contient "(SonIdentifiant)". Les comptes complets
-      // ("full": true, ex. "Agents du Cerema") et le mode "travaux" voient tout.
-      const nomPourAcces = (mapped.NomStructure || '').toString().trim();
-      if (!window.__isOuvrageAccessible(nomPourAcces)) return;
+      // que les ouvrages dont la colonne "Gestionnaire" contient son identifiant (nom
+      // strictement identique). Les comptes complets ("full": true, ex. "Agents du Cerema")
+      // et le mode "travaux" voient tout.
+      if (!window.__isOuvrageAccessible(mapped.GestionnaireStructure)) return;
       const key = structureGroupKey(mapped);
       if (!key) return; // ni nom, ni coordonnées exploitables sur cette ligne
       if (!structureGroups.has(key)) structureGroups.set(key, []);
@@ -5139,6 +5156,8 @@ grist.ready({
     // ---- Groupe "Ouvrage" (point) ----
     { name: 'NomStructure', title: '🟥 Ouvrage — Nom', type: 'Text', optional: true,
       description: 'Nom de l\'ouvrage (titre de l\'encadré au survol)' },
+    { name: 'GestionnaireStructure', title: '🟥 Ouvrage — Gestionnaire(s) (accès restreint)', type: 'Text,Choice,ChoiceList,Reference,ReferenceList,Any', optional: true,
+      description: 'Détermine qui a le droit de voir cet ouvrage : le(s) nom(s) saisi(s) doivent être EXACTEMENT identiques au(x) identifiant(s) de connexion (voir écran de connexion). Plusieurs gestionnaires possibles (colonne Liste de choix/références, ou noms séparés par une virgule). Un identifiant en mode "full" (ex. Agents du Cerema) voit tous les ouvrages quel que soit le contenu de cette colonne.' },
     { name: 'Latitude', title: '🟥 Ouvrage — Latitude', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'Longitude', title: '🟥 Ouvrage — Longitude', type: 'Numeric,Int,Text,Any', optional: true },
     { name: 'DomaineStructure', title: '🟥 Ouvrage — Domaine géographique (manuel, repli)', type: 'Text', optional: true,
