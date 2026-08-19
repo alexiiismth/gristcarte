@@ -2545,9 +2545,10 @@ function parseFrenchNumber(value) {
 }
 
 // -------------------------------------------------------------------
-// Calcul de l'IE (Indice d'État) : IE d'un objet = IEm × IEu (Indice d'État mécanique × Indice
-// d'État d'usage). L'IE de l'ouvrage, pour une visite donnée, est le MINIMUM des IE de tous les
-// objets évalués lors de cette visite (le point le plus faible détermine l'état global).
+// Calcul de l'IE (Indice d'État) : IE d'un objet = min(IEm, IEu) (le plus petit entre l'Indice
+// d'État mécanique et l'Indice d'État d'usage). L'IE de l'ouvrage, pour une visite donnée, est le
+// MINIMUM des IE de tous les objets évalués lors de cette visite (le point le plus faible
+// détermine l'état global).
 // -------------------------------------------------------------------
 
 // Découpe un champ "désordres" (ou "descriptions de désordres") en plusieurs entrées.
@@ -2603,7 +2604,7 @@ function buildObjetsIEFromMapped(mapped) {
     if (!nom) continue;
     const ieM = parseFrenchNumber(mapped['Objet' + n + 'IEmFiche']);
     const ieU = parseFrenchNumber(mapped['Objet' + n + 'IEuFiche']);
-    const ie = (Number.isFinite(ieM) && Number.isFinite(ieU)) ? (ieM * ieU) : NaN;
+    const ie = (Number.isFinite(ieM) && Number.isFinite(ieU)) ? Math.min(ieM, ieU) : NaN;
     objets.push({
       nom: nom,
       type: formatTextValue(mapped['Objet' + n + 'TypeFiche']),
@@ -2674,9 +2675,9 @@ function buildObjetsNotationTableHtml(objetsIE) {
     '</tr>'
   ).join('');
   return (
-    '<div class="modal-section-title">Notation des objets (IEm × IEu = IE)</div>' +
+    '<div class="modal-section-title">Notation des objets (IE = min(IEm, IEu))</div>' +
     '<table class="pdf-objets-table">' +
-      '<tr><th>Objet</th><th>IEm</th><th>IEu</th><th>IE (IEm × IEu)</th></tr>' +
+      '<tr><th>Objet</th><th>IEm</th><th>IEu</th><th>IE (min)</th></tr>' +
       rows +
     '</table>'
   );
@@ -3375,7 +3376,7 @@ window.exportObjetFicheToPdf = async function () {
         '<th>IEu</th><td>' + formatIEValue(objet.ieU) + '</td>' +
       '</tr>' +
       '<tr>' +
-        '<th>IE (IEm × IEu)</th><td colspan="3">' + formatIEValue(objet.ie) + '</td>' +
+        '<th>IE (min de IEm, IEu)</th><td colspan="3">' + formatIEValue(objet.ie) + '</td>' +
       '</tr>' +
     '</table>' +
     '<div class="pdf-section"><h3>Utilité / Description</h3><p>' + escapeHtml(objet.utilite || '—') + '</p></div>' +
