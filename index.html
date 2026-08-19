@@ -2270,7 +2270,7 @@ window.showGuideModal = function () {
       '<tr><td style="padding:6px;border:1px solid #ddd;">📋 Grilles d\'évaluation</td><td style="padding:6px;border:1px solid #ddd;">Affiche les 2 photos des grilles d\'évaluation, communes à tous les ouvrages.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">🚧 Historique des travaux</td><td style="padding:6px;border:1px solid #ddd;">Affiche l\'historique des interventions réalisées sur l\'ouvrage (date, mécanique/usages, type d\'action, commentaire) et propose un formulaire pour <b>enregistrer une nouvelle intervention</b> (date, mécanique/usages, type d\'action, commentaire). C\'est le seul bouton encore disponible en mode travaux.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">⚠️ Travaux à prévoir</td><td style="padding:6px;border:1px solid #ddd;">Note libre décrivant les travaux à planifier, avec une case "Travaux standard" ou "Travaux urgent" (à titre indicatif seulement, ne fait plus clignoter le pin).</td></tr>' +
-      '<tr><td style="padding:6px;border:1px solid #ddd;">🔴 Clignotement du pin</td><td style="padding:6px;border:1px solid #ddd;">Le pin de l\'ouvrage clignote en rouge si la case "Clignote en rouge" est cochée sur sa visite (fiche visite) la PLUS RÉCENTE.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">🔴 Clignotement du pin</td><td style="padding:6px;border:1px solid #ddd;">Le pin de l\'ouvrage clignote en rouge si son IE (note générale, la plus basse parmi ses objets) vaut 1 (intervention urgente).</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">🗂️ Voir les objets</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la liste des objets liés à l\'ouvrage (nombre illimité). Cliquer sur un nom affiche sa fiche : photo, type, utilité/description.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📥 Télécharger la fiche PDF</td><td style="padding:6px;border:1px solid #ddd;">Génère la fiche synthétique complète de l\'ouvrage (informations, illustration, objets, synthèse des visites, historique des interventions), suivie de l\'ensemble des fiches de visite détaillées.</td></tr>' +
     '</table>' +
@@ -2717,7 +2717,11 @@ function buildObjetsDesordresSectionHtml(objetsIE) {
     });
     if (concernes.length === 0) return '';
     let html = '<div class="modal-section-title">' + escapeHtml(titre) + '</div>';
-    concernes.forEach(o => {
+    concernes.forEach((o, i) => {
+      // Trait gris séparant les désordres de cet objet de ceux de l'objet précédent (aucun trait avant le premier objet)
+      if (i > 0) {
+        html += '<hr style="border:none;border-top:1px solid #ccc;margin:14px 0;">';
+      }
       html +=
         '<div class="modal-row" style="margin-top:12px;">' +
           '<b>Objet :</b> ' + escapeHtml(o.nom || '—') +
@@ -3761,9 +3765,10 @@ async function saveTravauxAPrevoir(showFeedback) {
 }
 
 // Fait clignoter en rouge (ou arrête de faire clignoter) le pin d'un ouvrage. Le clignotement
-// est désormais déterminé UNIQUEMENT par la case "Clignote en rouge" de la visite la plus récente
-// de l'ouvrage (voir la boucle de rendu des marqueurs), donc recalculé automatiquement à chaque
-// rafraîchissement des données — aucune synchronisation manuelle n'est nécessaire ici.
+// est désormais déterminé UNIQUEMENT par l'IE (note générale) de l'ouvrage : il clignote si et
+// seulement si cette note vaut 1 (intervention urgente) — voir la boucle de rendu des marqueurs,
+// donc recalculé automatiquement à chaque rafraîchissement des données — aucune synchronisation
+// manuelle n'est nécessaire ici.
 function setOuvrageBlink(marker, urgent) {
   if (!marker || typeof marker.getElement !== 'function') return;
   const el = marker.getElement();
@@ -4234,8 +4239,8 @@ function applyStructureFilter(predicate) {
       entry.marker.addTo(structureLayerGroup);
       matchedLatLngs.push(entry.marker.getLatLng());
       // clearLayers() peut recréer l'élément DOM de l'icône : on réapplique le clignotement au besoin
-      const prevoirEntry = window.__travauxAPrevoir[entry.travauxPrevoirKey];
-      setOuvrageBlink(entry.marker, !!(prevoirEntry && prevoirEntry.urgent));
+      // (le pin clignote en rouge uniquement si l'IE de l'ouvrage vaut 1, cf. entry.etat)
+      setOuvrageBlink(entry.marker, entry.etat === '1');
     }
   });
 
@@ -4933,8 +4938,7 @@ async function drawRecords(records, mappings) {
       const registryEntry = window.__structureRegistry[window.__structureRegistry.length - 1];
 
       // Visites reliées à cet ouvrage par nom (collectées indépendamment de la position de ligne),
-      // triées de la plus récente à la plus ancienne (calculées ICI, avant la création du marqueur,
-      // car le clignotement du pin dépend désormais de la case cochée sur la visite la plus récente).
+      // triées de la plus récente à la plus ancienne.
       const visits = visitsByGroupKey.get(key) || [];
       visits.sort((a, b) => {
         if (a.parsedDate && b.parsedDate) return b.parsedDate - a.parsedDate;
@@ -4942,15 +4946,23 @@ async function drawRecords(records, mappings) {
         if (b.parsedDate) return 1;
         return 0;
       });
-      // Le pin clignote en rouge si la visite la plus récente a la case "Clignote en rouge" cochée.
-      // Lu directement depuis les données de la table à chaque rafraîchissement : aucune écriture
-      // séparée n'est nécessaire, donc pas de risque de désynchronisation.
-      const clignoteRouge = visits.length > 0 && !!visits[0].data.clignoteRouge;
+
+      // Note générale de l'ouvrage (IE), calculée ICI (avant la création du marqueur) car le
+      // clignotement du pin dépend désormais UNIQUEMENT de cette note : le pin clignote en rouge
+      // si et seulement si l'IE de l'ouvrage vaut 1 (intervention urgente). La case "Travaux
+      // urgent" (Travaux à prévoir) ne pilote plus le clignotement.
+      const objetsListePourNote = [1, 2, 3, 4, 5, 6].map(n => ({
+        note: formatTextValue(mapped['Objet' + n + 'NoteGenerale']),
+        nom: formatTextValue(mapped['Objet' + n + 'Nom'])
+      })).filter(o => o.nom);
+      const noteGeneraleOuvrage = computeOuvrageNoteGenerale(objetsListePourNote);
+      const clignoteRouge = noteGeneraleOuvrage === '1';
 
       const marker = L.marker([lat, lng], {
         icon: createStructureIcon(imageSrc, color, imageAttachmentId)
       }).addTo(structureLayerGroup);
       registryEntry.marker = marker;
+      registryEntry.etat = noteGeneraleOuvrage;
       setOuvrageBlink(marker, clignoteRouge);
 
       const domaineAuto = findDomaineForPoint(lat, lng, domainePolygonsGlobal);
@@ -5193,8 +5205,8 @@ grist.ready({
     { name: 'DesordreUsageFiche', title: '🟥 Fiche visite — Désordre(s) d\'usage', type: 'Text', optional: true },
     { name: 'ConclusionFiche', title: '🟥 Fiche visite — Conclusion de la visite', type: 'Text', optional: true,
       description: 'Conclusion rédigée par l\'inspecteur, affichée tout en bas de la fiche visite' },
-    { name: 'ClignoteRougeFiche', title: '🟥 Fiche visite — Clignote en rouge (travaux urgents)', type: 'Bool,Text,Any', optional: true,
-      description: 'Case à cocher. Le pin de l\'ouvrage clignote en rouge si cette case est cochée sur sa visite la PLUS RÉCENTE.' },
+    { name: 'ClignoteRougeFiche', title: '🟥 Fiche visite — Clignote en rouge (information, ne pilote plus le pin)', type: 'Bool,Text,Any', optional: true,
+      description: 'Case à cocher, conservée à titre indicatif seulement : ne pilote plus le clignotement du pin. Le pin clignote désormais uniquement lorsque l\'IE de l\'ouvrage vaut 1 (intervention urgente).' },
     { name: 'PhotoFiche1', title: '🟥 Fiche visite — Photo 1', type: 'Text,Attachments', optional: true },
     { name: 'DescriptionPhotoFiche1', title: '🟥 Fiche visite — Description photo 1', type: 'Text', optional: true },
     { name: 'PhotoFiche2', title: '🟥 Fiche visite — Photo 2', type: 'Text,Attachments', optional: true },
@@ -5479,8 +5491,8 @@ try {
     if (document.getElementById('calendar-modal-overlay')) renderCalendarMonth();
 
     // Travaux à prévoir : note de planification interne (texte + standard/urgent), enregistrée dans
-    // les options du widget Grist. Ne pilote plus le clignotement des pins (voir la case "Clignote
-    // en rouge" sur la fiche de la visite la plus récente, lue directement depuis la table).
+    // les options du widget Grist. Ne pilote plus le clignotement des pins (le pin clignote
+    // uniquement lorsque l'IE de l'ouvrage vaut 1, recalculé depuis les données de la table).
     // Même garde anti-course que pour visitPlanning ci-dessus.
     if (window.__travauxAPrevoirPendingWrites > 0) {
       // rien à faire : écriture "travauxAPrevoir" encore en vol
