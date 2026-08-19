@@ -2738,6 +2738,25 @@ function buildObjetsDesordresSectionHtml(objetsIE) {
   );
 }
 
+// Construit le HTML des désordres (mécaniques puis usage) relevés lors de la dernière visite
+// pour UN SEUL objet (utilisé dans la fiche détaillée d'un objet, modale "Voir les objets").
+// Retourne un message par défaut si aucun désordre n'est renseigné pour cet objet.
+function buildObjetFicheDesordresHtml(objet) {
+  const mecaniqueTable = buildDesordresTableHtml(objet.desordresMecaniques);
+  const usageTable = buildDesordresTableHtml(objet.desordresUsage);
+  let html = '';
+  if (mecaniqueTable) {
+    html += '<div class="modal-section-title">Désordre(s) mécanique</div>' + mecaniqueTable;
+  }
+  if (usageTable) {
+    html += '<div class="modal-section-title">Désordre(s) d\'usage</div>' + usageTable;
+  }
+  if (!html) {
+    html = '<div class="modal-row"><b>Désordres :</b> Aucun désordre relevé lors de la dernière visite.</div>';
+  }
+  return html;
+}
+
 // Clé de regroupement d'un ouvrage : par nom (prioritaire) sinon par coordonnées GPS arrondies
 function structureGroupKey(mapped) {
   const name = (mapped.NomStructure || '').toString().trim().toLowerCase();
@@ -3288,6 +3307,7 @@ window.__showObjetFiche = async function (storeId, idx, ouvrageNom) {
     (objet.type ? '<div class="modal-row"><b>Type :</b> ' + escapeHtml(objet.type) + '</div>' : '') +
     '<div class="modal-row"><b>IEm :</b> ' + formatIEValue(objet.ieM) + ' &nbsp;|&nbsp; <b>IEu :</b> ' + formatIEValue(objet.ieU) + ' &nbsp;|&nbsp; <b>IE :</b> ' + formatIEValue(objet.ie) + '</div>' +
     '<div class="modal-row"><b>Utilité / Description :</b> ' + escapeHtml(objet.utilite || '—') + '</div>' +
+    buildObjetFicheDesordresHtml(objet) +
     '<button class="btn btn-form fiche-pdf-btn" onclick="window.exportObjetFicheToPdf()">🖨️ Exporter en PDF</button>';
 
   let tokenInfo = null;
@@ -3359,6 +3379,7 @@ window.exportObjetFicheToPdf = async function () {
       '</tr>' +
     '</table>' +
     '<div class="pdf-section"><h3>Utilité / Description</h3><p>' + escapeHtml(objet.utilite || '—') + '</p></div>' +
+    '<div class="pdf-section"><h3>Désordres relevés (dernière visite)</h3>' + buildObjetFicheDesordresHtml(objet) + '</div>' +
     '<div class="pdf-section"><h3>Photo</h3><div class="pdf-photo-grid">' + photosHtml + '</div></div>' +
     '<div class="pdf-footer">Carte interactive développée par l\'agence d\'Angers du Cerema</div>';
 
