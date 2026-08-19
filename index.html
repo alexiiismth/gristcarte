@@ -3057,7 +3057,6 @@ window.__ficheRenderTab = async function (storeId, idx) {
     '<div class="modal-row"><b>Date de la visite :</b> ' + escapeHtml(visit.data.date || '—') + '</div>' +
     '<div class="modal-row"><b>Nom complet ouvrage :</b> ' + escapeHtml(visit.data.nomComplet || '—') + '</div>' +
     '<div class="modal-row"><b>Condition de visite :</b> ' + escapeHtml(visit.data.conditionVisite || '—') + '</div>' +
-    '<div class="modal-row"><b>IS (indice stratégique) :</b> ' + escapeHtml(visit.data.indiceStrategique || '—') + '</div>' +
     '<div class="modal-row"><b>IE de l\'ouvrage (min. des objets) :</b> ' + formatIEValue(visit.data.ouvrageIE) + '</div>' +
     '<div class="modal-row"><b>Information sur l\'ouvrage :</b> ' + escapeHtml(visit.data.description || '—') + '</div>' +
     '<div class="modal-row"><b>Désordre(s) mécanique :</b> ' + escapeHtml(visit.data.desordreMecanique || '—') + '</div>' +
@@ -3110,8 +3109,7 @@ async function buildVisitPdfHtml(visit, headingLevel) {
         '<th>Condition de visite</th><td colspan="3">' + escapeHtml(visit.data.conditionVisite || '—') + '</td>' +
       '</tr>' +
       '<tr>' +
-        '<th>IS (indice stratégique)</th><td>' + escapeHtml(visit.data.indiceStrategique || '—') + '</td>' +
-        '<th>IE de l\'ouvrage</th><td>' + formatIEValue(visit.data.ouvrageIE) + '</td>' +
+        '<th>IE de l\'ouvrage</th><td colspan="3">' + formatIEValue(visit.data.ouvrageIE) + '</td>' +
       '</tr>' +
     '</table>' +
     '<div class="pdf-section">' +
@@ -4790,13 +4788,12 @@ async function drawRecords(records, mappings) {
         { url: mapped.PhotoFiche5 || '', desc: mapped.DescriptionPhotoFiche5 || '' }
       ];
       const fichePhotoPresente = fichePhotos.some(p => Array.isArray(p.url) ? p.url.length > 0 : !!p.url);
-      const ficheIndiceStrategique = formatTextValue(mapped.IndiceStrategiqueFiche);
       const objetsIE = buildObjetsIEFromMapped(mapped);
       const objetsIEPresents = objetsIE.length > 0;
       const ficheExiste = !!(ficheInspecteurs || ficheDate || ficheNomComplet || ficheDescription ||
         ficheConditionVisite || ficheDesordreMecanique ||
         ficheDesordreUsage || ficheConclusion || ficheClignoteRouge || fichePhotoPresente ||
-        ficheIndiceStrategique || objetsIEPresents);
+        objetsIEPresents);
       if (!ficheExiste) return; // cette ligne ne contient aucune donnée de visite
 
       const normalizedName = ficheNomComplet.toString().trim().toLowerCase();
@@ -4825,7 +4822,6 @@ async function drawRecords(records, mappings) {
           conclusion: ficheConclusion,
           clignoteRouge: ficheClignoteRouge,
           photos: fichePhotos,
-          indiceStrategique: ficheIndiceStrategique,
           objetsIE: objetsIE,
           ouvrageIE: computeOuvrageIEFromObjets(objetsIE)
         }
@@ -5076,12 +5072,9 @@ async function drawRecords(records, mappings) {
         classifGroupe: classifGroupe,
         description: mapped.DescriptionOuvrage || '',
         codeIdentification: mapped.CodeIdentificationOuvrage || '',
-        // IS de l'ouvrage = IS renseigné sur la dernière visite en date (visits est trié du plus
-        // récent au plus ancien). Si aucune visite n'a d'IS renseigné, on retombe sur l'ancienne
-        // colonne "IndiceStrategiqueOuvrage" (pour compatibilité si elle est encore utilisée).
-        indiceStrategique: (visits.length > 0 && visits[0].data.indiceStrategique)
-          ? visits[0].data.indiceStrategique
-          : (mapped.IndiceStrategiqueOuvrage || ''),
+        // IS de l'ouvrage = renseigné une seule fois, lors de la création de l'ouvrage (colonne
+        // "IndiceStrategiqueOuvrage"). Il n'est plus saisi ni affiché au niveau des fiches visite.
+        indiceStrategique: mapped.IndiceStrategiqueOuvrage || '',
         noteGenerale: noteGenerale,
         photos: window.__photoStore[photoStructureId],
         objets: objetsPourTableau,
@@ -5217,7 +5210,6 @@ grist.ready({
     { name: 'DescriptionPhotoFiche4', title: '🟥 Fiche visite — Description photo 4', type: 'Text', optional: true },
     { name: 'PhotoFiche5', title: '🟥 Fiche visite — Photo 5', type: 'Text,Attachments', optional: true },
     { name: 'DescriptionPhotoFiche5', title: '🟥 Fiche visite — Description photo 5', type: 'Text', optional: true },
-    { name: 'IndiceStrategiqueFiche', title: '🟥 Fiche visite — IS (indice stratégique)', type: 'Text,Numeric,Int,Any', optional: true },
     { name: 'Objet1NomFiche', title: '🟥 Fiche visite — Objet 1 : nom', type: 'Text', optional: true },
     { name: 'Objet1TypeFiche', title: '🟥 Fiche visite — Objet 1 : type', type: 'Text', optional: true },
     { name: 'Objet1IMFiche', title: '🟥 Fiche visite — Objet 1 : IM (identification)', type: 'Text,Numeric,Int,Any', optional: true },
@@ -5313,7 +5305,8 @@ grist.ready({
     { name: 'DescriptionOuvrage', title: '🟥 Ouvrage — Information / Description', type: 'Text', optional: true,
       description: 'Texte descriptif de l\'ouvrage (affiché dans la fiche PDF, section "Information sur l\'ouvrage")' },
     { name: 'CodeIdentificationOuvrage', title: '🟥 Ouvrage — Code d\'identification', type: 'Text,Numeric,Int,Any', optional: true },
-    { name: 'IndiceStrategiqueOuvrage', title: '🟥 Ouvrage — Indice stratégique', type: 'Text,Numeric,Int,Any', optional: true },
+    { name: 'IndiceStrategiqueOuvrage', title: '🟥 Ouvrage — Indice stratégique', type: 'Text,Numeric,Int,Any', optional: true,
+      description: 'Renseigné une seule fois, lors de la création de l\'ouvrage. N\'apparaît que dans le tableau en haut de la fiche synthétique de l\'ouvrage (plus dans les fiches visite).' },
     { name: 'DateVisitePlanifiee', title: '🟥 Ouvrage — Date(s) de visite planifiée (calendrier)', type: 'Text,Any', optional: true,
       description: 'Enregistrée automatiquement à chaque ajout/suppression dans le calendrier des visites prévues. À mapper vers une colonne de type Texte (pas Date), car plusieurs dates peuvent y être listées.' },
 
