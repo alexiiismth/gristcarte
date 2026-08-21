@@ -85,6 +85,7 @@
   .structure-card .btn-travaux { background: #e65100; }
   .structure-card .btn-travaux-prevoir { background: #c62828; }
   .structure-card .btn-pdf-ouvrage { background: #6a1b9a; }
+  .structure-card .btn-fiche-ouvrage-seule { background: #00897b; }
 
   .objet-select {
     width: 100%;
@@ -1201,6 +1202,7 @@
   body.mode-travaux .btn-maps,
   body.mode-travaux .btn-travaux-prevoir,
   body.mode-travaux .btn-pdf-ouvrage,
+  body.mode-travaux .btn-fiche-ouvrage-seule,
   body.mode-travaux .objet-select,
   body.mode-travaux .map-toolbar-btn,
   body.mode-travaux #map-info-button,
@@ -2272,6 +2274,7 @@ window.showGuideModal = function () {
       '<tr><td style="padding:6px;border:1px solid #ddd;">⚠️ Travaux à prévoir</td><td style="padding:6px;border:1px solid #ddd;">Note libre décrivant les travaux à planifier, avec une case "Travaux standard" ou "Travaux urgent" (à titre indicatif seulement, ne fait plus clignoter le pin).</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">🔴 Clignotement du pin</td><td style="padding:6px;border:1px solid #ddd;">Le pin de l\'ouvrage clignote en rouge si son IE (note générale, la plus basse parmi ses objets) vaut 1 (intervention urgente).</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">🗂️ Voir les objets</td><td style="padding:6px;border:1px solid #ddd;">Ouvre la liste des objets liés à l\'ouvrage (nombre illimité). Cliquer sur un nom affiche sa fiche : photo, type, utilité/description.</td></tr>' +
+      '<tr><td style="padding:6px;border:1px solid #ddd;">📄 Voir la fiche de l\'ouvrage</td><td style="padding:6px;border:1px solid #ddd;">Génère la fiche synthétique de l\'ouvrage (informations, illustration, objets, synthèse des visites, historique des interventions), <b>sans</b> les fiches de visite détaillées à la suite.</td></tr>' +
       '<tr><td style="padding:6px;border:1px solid #ddd;">📥 Télécharger la fiche PDF</td><td style="padding:6px;border:1px solid #ddd;">Génère la fiche synthétique complète de l\'ouvrage (informations, illustration, objets, synthèse des visites, historique des interventions), suivie de l\'ensemble des fiches de visite détaillées.</td></tr>' +
     '</table>' +
 
@@ -3508,7 +3511,8 @@ window.showTravauxModal = function (travauxId, nom) {
 // -------------------------------------------------------------------
 // Fiche PDF complète de l'ouvrage (fiche synthétique + toutes les fiches de visite à la suite)
 // -------------------------------------------------------------------
-window.exportOuvragePdf = async function (ouvrageId) {
+window.exportOuvragePdf = async function (ouvrageId, includeVisites) {
+  if (includeVisites === undefined) includeVisites = true;
   const data = window.__ouvrageStore[ouvrageId];
   if (!data) return;
 
@@ -3560,9 +3564,12 @@ window.exportOuvragePdf = async function (ouvrageId) {
   const derniereVisiteDescription = (data.visits && data.visits.length > 0) ? data.visits[0].data.description : '';
 
   // Détail complet de chaque fiche de visite, imprimée intégralement à la suite de la fiche ouvrage
+  // (uniquement si includeVisites est vrai — sinon la fiche s'arrête à la synthèse de l'ouvrage)
   let visitsDetailHtml = '';
-  for (const v of (data.visits || [])) {
-    visitsDetailHtml += '<div class="pdf-page-break"></div>' + await buildVisitPdfHtml(v, 'h2');
+  if (includeVisites) {
+    for (const v of (data.visits || [])) {
+      visitsDetailHtml += '<div class="pdf-page-break"></div>' + await buildVisitPdfHtml(v, 'h2');
+    }
   }
 
   container.innerHTML =
@@ -5120,6 +5127,7 @@ async function drawRecords(records, mappings) {
             '<a class="btn btn-travaux" href="#" onclick="event.preventDefault(); window.showTravauxModal(\'' + travauxId + '\', ' + jsStringLiteral(nom) + ');">🚧 Historique des travaux</a>' +
             '<a class="btn btn-travaux-prevoir" href="#" onclick="event.preventDefault(); window.showTravauxAPrevoirModal(' + jsStringLiteral(travauxPrevoirKey) + ', ' + jsStringLiteral(nom) + ');">⚠️ Travaux à prévoir</a>' +
             btnVoirObjets +
+            '<a class="btn btn-fiche-ouvrage-seule" href="#" onclick="event.preventDefault(); window.exportOuvragePdf(\'' + ouvrageId + '\', false);">📄 Voir la fiche de l\'ouvrage</a>' +
             '<a class="btn btn-pdf-ouvrage" href="#" onclick="event.preventDefault(); window.exportOuvragePdf(\'' + ouvrageId + '\');">📥 Télécharger la fiche PDF</a>' +
           '</div>' +
           warningBox +
