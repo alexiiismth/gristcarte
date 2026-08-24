@@ -2706,40 +2706,41 @@ function buildDesordresTableHtml(desordres) {
   );
 }
 
-// Construit, pour chaque type de désordre (mécanique, puis usage), un grand titre "Désordre(s)
-// mécanique" / "Désordre(s) d'usage" regroupant les tableaux des objets concernés. Pour chaque
-// objet ayant ce type de désordre, son nom et son IM sont rappelés juste au-dessus de son tableau
-// (un objet ayant les deux types de désordres apparaît donc sous les deux titres, avec son nom/IM
-// recopié à chaque fois). Les objets sans ce type de désordre n'apparaissent pas sous ce titre.
+// Construit la section "Désordres" de la fiche visite, classée PAR OBJET (et non plus par type
+// de désordre) : pour chaque objet concerné, un titre reprend son nom (et son IM), suivi de deux
+// parties — "Désordre(s) mécanique" puis "Désordre(s) d'usage" — chacune n'étant affichée que si
+// l'objet a effectivement ce type de désordre. Les objets sans aucun désordre n'apparaissent pas.
 function buildObjetsDesordresSectionHtml(objetsIE) {
   if (!objetsIE || objetsIE.length === 0) return '';
 
-  function buildBlockForType(titre, getDesordres) {
-    const concernes = objetsIE.filter(o => {
-      const d = getDesordres(o);
-      return d && d.length > 0;
-    });
-    if (concernes.length === 0) return '';
-    let html = '<div class="modal-section-title">' + escapeHtml(titre) + '</div>';
-    concernes.forEach((o, i) => {
-      // Trait gris séparant les désordres de cet objet de ceux de l'objet précédent (aucun trait avant le premier objet)
-      if (i > 0) {
-        html += '<hr style="border:none;border-top:1px solid #ccc;margin:14px 0;">';
-      }
-      html +=
-        '<div class="modal-row" style="margin-top:12px;">' +
-          '<b>Objet :</b> ' + escapeHtml(o.nom || '—') +
-          ' &nbsp;&nbsp; <b>IM :</b> ' + escapeHtml(o.im || '—') +
-        '</div>';
-      html += buildDesordresTableHtml(getDesordres(o));
-    });
-    return html;
-  }
-
-  return (
-    buildBlockForType('Désordre(s) mécanique', o => o.desordresMecaniques) +
-    buildBlockForType('Désordre(s) d\'usage', o => o.desordresUsage)
+  const concernes = objetsIE.filter(o =>
+    (o.desordresMecaniques && o.desordresMecaniques.length > 0) ||
+    (o.desordresUsage && o.desordresUsage.length > 0)
   );
+  if (concernes.length === 0) return '';
+
+  let html = '<div class="modal-section-title">Désordres relevés (par objet)</div>';
+  concernes.forEach((o, i) => {
+    // Trait gris séparant les désordres de cet objet de ceux de l'objet précédent (aucun trait avant le premier objet)
+    if (i > 0) {
+      html += '<hr style="border:none;border-top:1px solid #ccc;margin:14px 0;">';
+    }
+    html +=
+      '<div class="modal-row" style="margin-top:12px;">' +
+        '<b>Objet :</b> ' + escapeHtml(o.nom || '—') +
+        ' &nbsp;&nbsp; <b>IM :</b> ' + escapeHtml(o.im || '—') +
+      '</div>';
+
+    const mecaTable = buildDesordresTableHtml(o.desordresMecaniques);
+    if (mecaTable) {
+      html += '<div class="modal-row" style="margin-top:8px;"><b>Désordre(s) mécanique</b></div>' + mecaTable;
+    }
+    const usageTable = buildDesordresTableHtml(o.desordresUsage);
+    if (usageTable) {
+      html += '<div class="modal-row" style="margin-top:10px;"><b>Désordre(s) d\'usage</b></div>' + usageTable;
+    }
+  });
+  return html;
 }
 
 // Construit le HTML des désordres (mécaniques puis usage) relevés lors de la dernière visite
@@ -4972,15 +4973,18 @@ async function drawRecords(records, mappings) {
         return 0;
       });
 
-      // Note générale de l'ouvrage (IE), calculée ICI (avant la création du marqueur) car le
-      // clignotement du pin dépend désormais UNIQUEMENT de cette note : le pin clignote en rouge
-      // si et seulement si l'IE de l'ouvrage vaut 1 (intervention urgente). La case "Travaux
-      // urgent" (Travaux à prévoir) ne pilote plus le clignotement.
-      const objetsListePourNote = [1, 2, 3, 4, 5, 6].map(n => ({
-        note: formatTextValue(mapped['Objet' + n + 'NoteGenerale']),
-        nom: formatTextValue(mapped['Objet' + n + 'Nom'])
-      })).filter(o => o.nom);
-      const noteGeneraleOuvrage = computeOuvrageNoteGenerale(objetsListePourNote);
+      // Note générale de l'ouvrage = son IE (Indice d'État), calculée ICI (avant la création du
+      // marqueur) à partir des objets de la visite la PLUS RÉCENTE (visits est déjà trié du plus
+      // récent au plus ancien, cf. tri ci-dessus) : IE de l'ouvrage = le plus petit IE parmi ses
+      // objets (voir computeOuvrageIEFromObjets, déjà précalculé dans visits[0].data.ouvrageIE).
+      // Le pin clignote en rouge si et seulement si cette IE vaut 1 (intervention urgente).
+      // Important : on n'utilise PAS ici les champs "Objet1..6 NoteGenerale" de l'ouvrage (qui
+      // sont un catalogue distinct, non relié à la fiche visite) — c'était la cause du bug où le
+      // pin ne clignotait jamais.
+      const ouvrageIE = visits.length > 0 ? visits[0].data.ouvrageIE : null;
+      const noteGeneraleOuvrage = (ouvrageIE === null || ouvrageIE === undefined || !Number.isFinite(ouvrageIE))
+        ? ''
+        : String(ouvrageIE);
       const clignoteRouge = noteGeneraleOuvrage === '1';
 
       const marker = L.marker([lat, lng], {
@@ -5058,10 +5062,10 @@ async function drawRecords(records, mappings) {
       })).filter(o => o.nom);
       window.__objetsStore[objetUid] = objetsListe;
 
-      // Note générale de l'ouvrage : calculée automatiquement (note la plus basse parmi les objets),
-      // plus aucune saisie directe de "l'état de l'ouvrage" n'est possible.
-      const noteGenerale = computeOuvrageNoteGenerale(objetsListe);
-      registryEntry.etat = noteGenerale;
+      // Remarque : registryEntry.etat (utilisé pour les statistiques "Santé du patrimoine" et pour
+      // le clignotement du pin) a déjà été calculé plus haut à partir de l'IE de la visite la plus
+      // récente (voir noteGeneraleOuvrage / ouvrageIE) — on ne le recalcule pas ici à partir du
+      // catalogue "Objet1..6 NoteGenerale", qui est un champ distinct non relié aux fiches visite.
 
       // Objets consultables via "🗂️ Voir les objets" : UNIQUEMENT ceux relevés lors de la
       // dernière visite en date (visits est déjà trié du plus récent au plus ancien), avec leur
