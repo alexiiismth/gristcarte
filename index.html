@@ -4198,13 +4198,20 @@ function attachHoverCard(layer, contentHtml, extraOptions) {
 
   // Renfort : écouteurs DOM natifs directement sur l'élément, plus fiables
   // avec certaines icônes personnalisées (image/SVG) selon les navigateurs
-  layer.on('add', () => {
+  const attachElementListeners = () => {
     const el = layer.getElement ? layer.getElement() : null;
     if (el) {
       el.addEventListener('mouseenter', () => { cancelClose(); layer.openPopup(); });
       el.addEventListener('mouseleave', scheduleClose);
     }
-  });
+  };
+  layer.on('add', attachElementListeners);
+  // Cas des marqueurs "ouvrage" : ils sont ajoutés à la carte (structureLayerGroup)
+  // AVANT l'appel à attachHoverCard. L'événement 'add' s'est donc déjà produit et ne se
+  // redéclenchera pas : sans cet appel immédiat, le renfort DOM ci-dessus n'était jamais
+  // posé, ce qui empêchait l'encadré de s'ouvrir de façon fiable au survol des icônes
+  // personnalisées (image/SVG) des ouvrages.
+  attachElementListeners();
 
   layer.on('popupopen', (e) => {
     const el = e.popup.getElement();
