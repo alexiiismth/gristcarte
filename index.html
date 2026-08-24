@@ -5097,7 +5097,11 @@ async function drawRecords(records, mappings) {
         derniereVisiteObjets.map(o => ({ nom: o.nom, type: o.type, note: '', ie: o.ie }))
       );
 
-
+      // Note générale de l'ouvrage (voir computeOuvrageNoteGenerale) : calculée à partir de
+      // objetsListe (échelle 1-4). Cette ligne manquait, ce qui provoquait une ReferenceError
+      // à CHAQUE ouvrage (juste avant attachHoverCard) et empêchait donc l'encadré de
+      // s'afficher au survol de TOUTES les icônes d'ouvrage.
+      const noteGenerale = computeOuvrageNoteGenerale(objetsListe);
 
       // Stocke les données nécessaires à la fiche PDF complète de l'ouvrage
       const ouvrageId = 'ouvrage-' + Math.random().toString(36).slice(2);
